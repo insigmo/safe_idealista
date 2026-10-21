@@ -44,14 +44,14 @@ function renderControls(): void {
     cats.append(row);
   }
   for (const text of [
-    'Dirt, smell, graffiti and incivism exist only in Barcelona; low income only outside it.',
-    '* Crime: in Barcelona, per district split over barris by estimate; elsewhere, one figure per municipality, published only above 20,000 residents.',
+    'Dirt, graffiti and incivism exist in Barcelona and Madrid, smell only in Barcelona; low income only outside the two cities.',
+    '* Crime: in Barcelona, per district split over barris by estimate; in Madrid, city-police incidents per barrio; elsewhere, one figure per municipality, published only above 20,000 residents.',
   ]) {
     cats.append(Object.assign(document.createElement('p'), { className: 'small', textContent: text }));
   }
 }
 
-function renderMeta(meta: Meta, spain: Meta | null): void {
+function renderMeta(meta: Meta, madrid: Meta | null, spain: Meta | null): void {
   const r = meta.date_ranges;
   const rows: [string, string][] = [
     ['BCN complaints (IRIS)', `${r.iris.from} … ${r.iris.to}`],
@@ -59,6 +59,10 @@ function renderMeta(meta: Meta, spain: Meta | null): void {
     ['BCN crime split (GUB)', `${r.gub_incidents.from} … ${r.gub_incidents.to}`],
     ['BCN residents', r.population.from],
   ];
+  if (madrid) {
+    const m = madrid.date_ranges;
+    rows.push(['Madrid reports (Avisos)', `${m.avisos.from} … ${m.avisos.to}`], ['Madrid police incidents', `${m.police_incidents.from} … ${m.police_incidents.to}`]);
+  }
   if (spain) {
     const e = spain.date_ranges;
     rows.push(['Spain crime (Interior)', `${e.crime.from} … ${e.crime.to}`], ['Spain income (INE)', e.income.from], ['Census sections', e.sections.from]);
@@ -68,9 +72,16 @@ function renderMeta(meta: Meta, spain: Meta | null): void {
   for (const [k, v] of rows) {
     dl.append(Object.assign(document.createElement('dt'), { textContent: k }), Object.assign(document.createElement('dd'), { textContent: v }));
   }
-  for (const c of [...meta.caveats, ...(spain?.caveats ?? [])]) $('caveats').append(Object.assign(document.createElement('li'), { textContent: c }));
-  for (const s of [...meta.sources, ...(spain?.sources ?? [])]) {
-    $('sources').append(Object.assign(document.createElement('li'), { textContent: `${s.dataset} — ${s.resource}` }));
+  for (const c of [...meta.caveats, ...(madrid?.caveats ?? []), ...(spain?.caveats ?? [])]) {
+    $('caveats').append(Object.assign(document.createElement('li'), { textContent: c }));
+  }
+  // Both extra layers list the same INE files; show each source once.
+  const seen = new Set<string>();
+  for (const s of [...meta.sources, ...(madrid?.sources ?? []), ...(spain?.sources ?? [])]) {
+    const text = `${s.dataset} — ${s.resource}`;
+    if (seen.has(text)) continue;
+    seen.add(text);
+    $('sources').append(Object.assign(document.createElement('li'), { textContent: text }));
   }
 }
 
@@ -94,10 +105,12 @@ async function main(): Promise<void> {
     save();
   });
   const meta = (await (await fetch('meta.json')).json()) as Meta;
-  const spain = await fetch('spain/index.json')
-    .then((r) => (r.ok ? (r.json() as Promise<{ meta: Meta }>) : null))
-    .catch(() => null);
-  renderMeta(meta, spain?.meta ?? null);
+  const json = <T>(path: string): Promise<T | null> =>
+    fetch(path)
+      .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
+      .catch(() => null);
+  const [madrid, spain] = await Promise.all([json<Meta>('madrid/meta.json'), json<{ meta: Meta }>('spain/index.json')]);
+  renderMeta(meta, madrid, spain?.meta ?? null);
 }
 
 void main();

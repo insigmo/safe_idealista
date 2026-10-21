@@ -92,7 +92,7 @@ Full tables are in [`data/rankings.md`](data/rankings.md).
 
 ## Spain-wide layer (outside Barcelona)
 
-Added 2026-10-21 so the extension works on any Idealista search in Spain. The Barcelona grid above stays as it is; everywhere else (including Barcelona's suburbs) the extension uses this layer. Code: [`pipeline/spain.go`](pipeline/spain.go), [`extension/src/spain.ts`](extension/src/spain.ts).
+Added 2026-10-21 so the extension works on any Idealista search in Spain. The Barcelona grid above and the Madrid grid below stay as they are; everywhere else (including both cities' suburbs) the extension uses this layer. Code: [`pipeline/spain.go`](pipeline/spain.go), [`extension/src/spain.ts`](extension/src/spain.ts).
 
 ### What exists nationally
 
@@ -118,6 +118,48 @@ Crime types counted: Balance types 1–10 (homicide and attempts, assault, kidna
 ### Sanity check
 
 Full table in [`data/spain/summary.md`](data/spain/summary.md) (municipalities over 100,000 residents). Lowest street crime per 1,000 residents: Algeciras 10.3, San Cristóbal de La Laguna 11.1, Fuenlabrada 11.2, Oviedo 11.7. Highest: Barcelona 62.3, Palma 44.9, L'Hospitalet 39.0, València 36.8, Bilbao 36.3, Marbella 33.8. Madrid 28.8 (percentile 76). As in Barcelona, per-resident rates inflate tourist and central cities. On the Madrid map, Pozuelo comes out green and Puente de Vallecas red, with the centre in between.
+
+## Madrid grid
+
+Added 2026-10-21: the same kind of grid as Barcelona's, from Madrid's own open data (CKAN at `datos.madrid.es/api/3/action/`). Code: [`pipeline/madrid.go`](pipeline/madrid.go), [`extension/src/madrid.ts`](extension/src/madrid.ts). Output: `data/madrid/grid.json` (5,861 res-9 cells, 131 barrios, 906 KB), [`mapping.md`](data/madrid/mapping.md), [`rankings.md`](data/madrid/rankings.md).
+
+### Datasets
+
+| Layer | Dataset ID | Resource(s) | Fields used | Granularity | Window in current grid |
+|---|---|---|---|---|---|
+| Dirt, graffiti | `212411-0-madrid-avisa` *Avisos ciudadanos* (Avisos Madrid, SIC-MiNT) | "Avisos ciudadanos recibidos (SIC). YYYY", CSV, one per year, the current year updated monthly (~150 MB each) | `TIPO_INCIDENCIA, FECHA_DE_RECEPCION, CATEGORIA_NIVEL1/2, DISTRITO_ID, BARRIO_ID, COORDENADA_OFICIAL_X/Y` | point (address) | 2024-10 … 2026-09 |
+| Incivism, crime | `837676-0-incidencias-recibidas-en-la-emisora-central-de-policia-municipal` | "Incidencias emisora Policía Municipal. <Mes> YYYY", CSV, one per month | `Barrio, Incidentes, Descripción tipo de apertura` | barrio, monthly | 2026-01 … 2026-09 (the dataset starts in January 2026) |
+| Barrios | `300496-0-barrios-madrid` | `Barrios.zip` (SHP, ETRS89 UTM 30, UTF-8 attributes) from the geoportal | `CODDIS, NUM_BAR, NOMBRE, NOMDIS, BARRIO_MAY` | 131 barrios | current |
+| Residents, income | INE ADRH and section boundaries, as in the Spain-wide layer | | | census section (2,462 in Madrid) | 2024 |
+
+Notes on the files:
+- Avisos are UTF-8 with a BOM. The field description says dates are mm/dd/yyyy, but the data is dd/mm/yyyy (months 01–10 in the 2026 file). The coordinates are ETRS89 UTM 30, as documented: 100% of the points fall inside the barrio polygon their own `DISTRITO_ID`/`BARRIO_ID` names, which the pipeline checks on every run (it stops below 90%). `COORDENADA_OFICIAL` is the address's portal; `COORDENADA_REAL` (the phone's position, app reports only) is not used.
+- Only `TIPO_INCIDENCIA = Aviso` counts; `Petición` records are requests (new bins, new benches…).
+- The Emisora files name barrios in capitals without accents; they match the shapefile's `BARRIO_MAY` after accent folding. 123 incidents with barrio `#null` or `Desconocido` are dropped.
+- The Policía Municipal statistics dataset (`212616-0-policia-estadisticas`, monthly XLSX) has arrests and suspects only per district, so the Emisora incidents are used instead.
+
+### Category mapping
+
+Rules: `madridClassify` in `pipeline/madrid.go`; counts for every category pair in [`data/madrid/mapping.md`](data/madrid/mapping.md).
+
+| Category | What maps to it | Records (24 mo) |
+|---|---|---:|
+| `dirt` | street and green-space cleaning, urgent cleaning (SELUR), dirty municipal plots and street furniture, bins not emptied or abandoned, full litter bins, furniture dumped in the street, rubble bags, rats and cockroaches | 433,740 |
+| `graffiti` | *Pintadas y grafitis* | 21,733 |
+| `smell` | — Madrid has no excrement, urine or odour category | — |
+| — (not mapped) | pavement, lighting, trees and parks, signs, parking meters, requests for new bins, scheduled furniture pick-ups (*Muebles particulares*), dead animals, abandoned vehicles | 894,353 |
+
+Emisora incident types: **crime** = *Robos con fuerza, Hurtos, Robos con violencia / intimidación, Reyertas / agresiones, Sustracción de vehículo, Otros delitos* (51,564 in nine months); **incivism** = *Ruidos molestos, Consumo alcohol/drogas en vía pública, Normas de convivencia, Venta ambulante, Actuaciones advas. en locales públicos y de ocio* (89,598). Left out: traffic, SAMUR/fire-brigade support, *Resolución conflictos privados* (private disputes, like Barcelona's *convivència veïnal*), information calls.
+
+### Method
+
+As in Barcelona: residents spread over each census section on a 20 m lattice and summed per res-9 cell; dirt and graffiti per resident per hex with first-ring smoothing and shrinkage toward the city rate; crime and incivism per resident per barrio, shrunk toward the city rate (2,000 residents), every hex taking its barrio's value; city-wide percentiles over cells with ≥ 100 residents. The stored score uses Barcelona's default weights without smell; the extension re-weights with the popup's settings and simply skips smell in Madrid.
+
+**Crime here is not recorded crime.** In Madrid most offences are reported to the Policía Nacional, whose figures exist only for the whole city (the Interior Ministry's Balance). The Emisora counts incidents the city police handled, which follows the same geography but not the same totals. It is per barrio (131 units), finer than Barcelona's district-level Mossos data.
+
+### Sanity check
+
+Full tables in [`data/madrid/rankings.md`](data/madrid/rankings.md). Bottom 5 are all in Centro (Sol 1, Cortes 1, Embajadores 3, Universidad 4, Justicia 4), as Ciutat Vella is in Barcelona; Palacio and Casa de Campo (a park with few residents, so inflated rates) follow. Top: Valderrivas (Vicálvaro) 89, Valdefuentes (Hortaleza) 85, Costillares, Mirasierra. By district Hortaleza (69), Fuencarral–El Pardo (66) and Moratalaz (64) lead; Centro (4), Carabanchel (26) and Puente de Vallecas (29) trail. Salamanca lands mid-table (45) because of incivism and crime incidents per resident, the usual central-area effect.
 
 ## Idealista integration findings
 
@@ -158,7 +200,8 @@ The packaged extension cannot be installed in the in-app test browser, and that 
 - **Badges, fallback, filter, settings:** `extension/test/fixture.html` rebuilds Idealista's list markup, including an inline `config.listingMultimediaCarrousels` script, from 8 real listings captured on 2026-10-21, plus synthetic cases: no coordinates (→ barri `approx`), a point outside the city (L'Hospitalet → `Area` badge), an ad card, and a card inserted 1.5 s after load. Spain-wide cases: Madrid (`Area 38`), Seville with the address hidden (`Area 39 ≈`), Las Palmas (`Area 67`, which also checks the Canaries projection), Cadaqués (no crime figure: `Area 70` from income alone, no badge with income switched off) and a point at sea (no badge). The real content-script bundle runs there on a fake `chrome.storage`. All cases behaved as expected. Hide-red, crime-only re-weighting and all-categories-off were checked by changing settings live.
 - **Detail panel:** `extension/test/detail.html` rebuilds the detail header and its `config.multimediaCarrousel` script; `?case=` switches between the real Raval listing (address hidden), two exact points (Tres Torres, Sagrada Família), no coordinates (→ barri average from the location line) and a point outside the city (→ Spain-wide panel: safety and income rows; a copy moved to Cadaqués shows "No data" for safety). All behaved as expected, as did crime-only, all-layers-off and badges-off from the settings. The panel's selectors and the coordinate parse were checked on the live page; the bundle itself was not run there.
 - **Map overlay:** the built `page.js` was injected into the live `/mapa-google` page, together with 45 real hexes around Plaça Catalunya. It captured the map instance as soon as the map rendered, attached the overlay and legend, and stayed aligned through pan and zoom from 12 down to about 18 (La Rambla at street level).
-- **Spain-wide map layer:** `view` messages were posted to the fixture page and the overlay answer drawn on a canvas: about 500 hexes for Madrid at zoom 12–13, none at zoom 6, Barcelona's suburbs added around the city grid. The drawing code is unchanged from the live test above; the Spain-wide hexes were not drawn on the live map, because the test browser cannot load the shards into a public page.
+- **Madrid grid:** in the fixture, Lavapiés gets `Street 1` (Embajadores, the worst barrio), Salamanca `Street 65`, and Pozuelo (inside the box around Madrid, outside the city) falls back to the Spain-wide `Area 68`. A copy of `detail.html` moved to Goya shows the Madrid panel: dirt, graffiti, safety and incivism rows, no smell. A `view` message over Madrid at zoom 12 returned 2,043 Madrid hexes (cells under 100 residents hidden by default) and 158 Spain-wide hexes around the city; drawn on a canvas, Centro is red, the north green.
+- **Spain-wide map layer:** `view` messages were posted to the fixture page and the overlay answer drawn on a canvas: about 500 hexes for Madrid at zoom 12–13 (before the Madrid grid existed), none at zoom 6, Barcelona's suburbs added around the city grid. The drawing code is unchanged from the live test above; the Spain-wide hexes were not drawn on the live map, because the test browser cannot load the shards into a public page.
 - The in-app test browser runs hidden, where `requestAnimationFrame` never fires, so cards added after load were not re-rendered there. The checks used a copy of the fixtures with `requestAnimationFrame` replaced by a 16 ms timer (`dist-test/*-raf.html`, not committed).
 - **Popup:** the built popup was rendered with the fake storage. Checkbox, slider, hide-red and reset all write the expected settings, and the date ranges, caveats and sources show up.
 
@@ -177,4 +220,7 @@ The packaged extension cannot be installed in the in-app test browser, and that 
 - Spain-wide layer: **crime is one figure per municipality** and exists only for municipalities over 20,000 residents; smaller places are scored on income alone. Income is a context indicator, not a measure of street quality.
 - Spain-wide layer: the countryside index assigns a coarse hex to the section covering most of it, so near borders between large rural sections a point can get the neighbouring section's income.
 - Spain-wide layer: cards without coordinates get no badge outside Barcelona (there is no title fallback).
+- Madrid: **crime and incivism are city-police incidents per barrio**, not recorded crime and not per hex; noise includes complaints about neighbours' homes. The incident series starts in January 2026, so it covers nine months for now; the pipeline uses every month published.
+- Madrid: no smell layer. Dirt includes requests to empty bins, which partly reflect collection schedules rather than street dirt.
+- Madrid: the grid (906 KB) is fetched the first time a listing or the map is near Madrid; Madrid listings without coordinates get no badge.
 - Spain-wide layer: the newest crime year is read from the "Anteriores" list of the Interior portal; a 4th quarter that is still the current release appears there only once the next quarter is out.

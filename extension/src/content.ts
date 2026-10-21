@@ -1,12 +1,13 @@
 // Isolated-world content script: badges on listing cards, the "hide red"
 // filter, the per-layer panel on a listing's detail page, and feeding hex
-// polygons to the main-world map script (page.ts). Barcelona uses its own
-// detailed grid; everywhere else the Spain-wide layer (spain.ts).
+// polygons to the main-world map script (page.ts). Barcelona and Madrid use
+// their own detailed grids; everywhere else the Spain-wide layer (spain.ts).
 // It only reads what the page already rendered and the data bundled with the
 // extension; it makes no network requests.
 import { barriByName, barriOf, cellAt, cellPolygons, grid, level, ramp, score, type Barri, type Cell, type Level, type Values } from './grid';
 import { LOG, TAG, type OverlayMsg, type ViewMsg } from './protocol';
 import { ADDRESS_HIDDEN, barriFromTitle, CAROUSELS_KEY, DETAIL_CAROUSEL_KEY, SEL, STATIC_MAP_CENTER } from './selectors';
+import { inMadridGrid, madridAt, madridMeta, madridPolygons, viewTouchesMadrid, type MadridHit } from './madrid';
 import { CATEGORIES, CATEGORY_LABELS, loadSettings, onSettingsChanged, type Category, type Settings } from './settings';
 import { cellsInView, placeAt, spainMeta, type Place } from './spain';
 
@@ -14,12 +15,14 @@ interface Located {
   values: Values;
   cell?: Cell;
   barri?: Barri;
+  madrid?: MadridHit; // set for Madrid's grid
   place?: Place; // set for the Spain-wide layer
   approx: 'exact' | 'hidden-address' | 'barri';
 }
 
 // Layers shown for each kind of location.
 const BCN_CATEGORIES = CATEGORIES.filter((c) => c !== 'income');
+const MADRID_CATEGORIES: Category[] = ['dirt', 'graffiti', 'incivism', 'crime'];
 const SPAIN_CATEGORIES: Category[] = ['crime', 'income'];
 
 let settings: Settings;
@@ -72,13 +75,18 @@ function parseCarousels(): void {
 type Coords = { lat: number; lng: number; hidden: boolean };
 
 // Coordinates win; without them, the barri named in `title` gives its average.
-// Outside Barcelona's grid the answer comes from a data shard, so it is async.
+// Outside Barcelona's grid the answer comes from a data file, so it is async:
+// Madrid's grid near Madrid, the Spain-wide layer everywhere else.
 function locateBy(c: Coords | undefined, title: string): Located | null | Promise<Located | null> {
   if (c) {
     const approx = c.hidden ? 'hidden-address' : 'exact';
     const hit = cellAt(c.lat, c.lng);
     if (hit) return { values: hit.cell, cell: hit.cell, barri: barriOf(hit.cell), approx };
-    return placeAt(c.lat, c.lng).then((place) => (place ? { values: place.values, place, approx } : null));
+    return madridAt(c.lat, c.lng).then(async (m): Promise<Located | null> => {
+      if (m) return { values: m.cell, madrid: m, approx };
+      const place = await placeAt(c.lat, c.lng);
+      return place ? { values: place.values, place, approx } : null;
+    });
   }
   const name = barriFromTitle(title);
   const b = name ? barriByName(name) : null;
@@ -122,8 +130,25 @@ function spainNotes(place: Place): string[] {
   return notes;
 }
 
+function madridNotes(m: MadridHit): string[] {
+  const r = madridMeta()?.date_ranges;
+  const notes = [
+    `Citizen reports in this hex (${r?.avisos.from ?? ''} … ${r?.avisos.to ?? ''}): dirt ${m.cell.n_raw.dirt}, graffiti ${m.cell.n_raw.graffiti}. Residents ≈ ${m.cell.pop}.`,
+  ];
+  if (m.cell.lp) notes.push('Few residents here: values are close to the city average.');
+  if (m.barrio) notes.push(`Crime* and incivism: city-police incidents in ${m.barrio.name} (${r?.police_incidents.from ?? ''} … ${r?.police_incidents.to ?? ''}): ${m.barrio.crime_n} crime, ${m.barrio.incivism_n} incivism.`);
+  notes.push('Madrid publishes no smell data.');
+  return notes;
+}
+
 // Notes shared by the card tooltip and the detail panel.
 function locationNotes(loc: Located): string[] {
+  if (loc.madrid) {
+    const notes = madridNotes(loc.madrid);
+    if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
+    notes.push('* Incidents handled by the city police, per barrio: not recorded crime, and the same for the whole barrio.');
+    return notes;
+  }
   if (loc.place) {
     const notes = spainNotes(loc.place);
     if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
@@ -145,6 +170,7 @@ function locationNotes(loc: Located): string[] {
 // A hex can straddle a barri border, so name the area loosely.
 function areaName(loc: Located): string {
   if (loc.place) return loc.place.muni.n;
+  if (loc.madrid) return loc.madrid.barrio ? `${loc.madrid.barrio.name} area` : 'Madrid';
   return loc.barri ? (loc.approx === 'barri' ? loc.barri.name : `${loc.barri.name} area`) : 'Barcelona';
 }
 
@@ -161,7 +187,7 @@ function showTip(badge: HTMLElement, loc: Located): void {
   const s = score(loc.values, settings);
   head.textContent = `${areaName(loc)} · score ${s ?? '–'}/100`;
   tip.append(head);
-  for (const c of loc.place ? SPAIN_CATEGORIES : BCN_CATEGORIES) {
+  for (const c of loc.place ? SPAIN_CATEGORIES : loc.madrid ? MADRID_CATEGORIES : BCN_CATEGORIES) {
     const v = loc.values[c];
     const row = document.createElement('div');
     row.className = 'bcnsq-row' + (settings.enabled[c] && v !== undefined ? '' : ' bcnsq-off');
@@ -208,7 +234,7 @@ function renderCard(card: HTMLElement): void {
     if (l instanceof Promise) {
       locating.add(card);
       l.catch((e) => {
-        console.warn(LOG, 'Spain-wide lookup failed', e);
+        console.warn(LOG, 'Madrid/Spain-wide lookup failed', e);
         return null;
       }).then((v) => {
         located.set(card, v);
@@ -277,6 +303,13 @@ const SPAIN_ROWS: typeof PANEL_ROWS = [
   { c: 'crime', label: 'Safety*', inverse: true },
   { c: 'income', label: 'Income', inverse: true },
 ];
+// Madrid has no smell layer.
+const MADRID_ROWS = PANEL_ROWS.filter((r) => r.c !== 'smell');
+const MADRID_VERDICT: Record<Level, string> = {
+  good: 'Cleaner and safer than most of Madrid.',
+  mid: 'Around the city average: worth walking the street before deciding.',
+  bad: 'Dirtier or less safe than most of Madrid.',
+};
 const SPAIN_VERDICT: Record<Level, string> = {
   good: 'Better than most of Spain on the layers shown.',
   mid: 'Around the Spanish average: worth walking the street before deciding.',
@@ -300,7 +333,7 @@ function renderDetail(): void {
     if (l instanceof Promise) {
       detailLoc = 'pending';
       l.catch((e) => {
-        console.warn(LOG, 'Spain-wide lookup failed', e);
+        console.warn(LOG, 'Madrid/Spain-wide lookup failed', e);
         return null;
       }).then((v) => {
         detailLoc = v;
@@ -336,9 +369,9 @@ function renderDetail(): void {
   );
   head.append(big, titles);
   panel.append(head);
-  if (lv) panel.append(el('p', 'bcnsq-verdict', (loc.place ? SPAIN_VERDICT : VERDICT)[lv]));
+  if (lv) panel.append(el('p', 'bcnsq-verdict', (loc.place ? SPAIN_VERDICT : loc.madrid ? MADRID_VERDICT : VERDICT)[lv]));
 
-  for (const { c, label, inverse, minor } of loc.place ? SPAIN_ROWS : PANEL_ROWS) {
+  for (const { c, label, inverse, minor } of loc.place ? SPAIN_ROWS : loc.madrid ? MADRID_ROWS : PANEL_ROWS) {
     const p = loc.values[c];
     if (p === undefined) {
       const row = el('div', 'bcnsq-prow bcnsq-off');
@@ -365,7 +398,7 @@ function renderDetail(): void {
   const notes = [
     loc.place
       ? 'Safety and income: Spain-wide percentile, 100 = safest / highest income. Score: 100 = best. Same data as the map overlay.'
-      : 'Dirt, graffiti, smell, incivism: city-wide percentile, 0 = least, 100 = most. Safety and score: 100 = best. Same data as the map overlay.',
+      : `Dirt, graffiti, ${loc.madrid ? '' : 'smell, '}incivism: city-wide percentile, 0 = least, 100 = most. Safety and score: 100 = best. Same data as the map overlay.`,
     ...locationNotes(loc),
   ];
   for (const n of notes) panel.append(el('div', 'bcnsq-note', n));
@@ -387,15 +420,20 @@ function overlayTitle(): string {
   return on.length === CATEGORIES.length ? 'score' : `score (${on.map((c) => CATEGORY_LABELS[c]).join(', ')})`;
 }
 
-// Spain-wide hexes for the current map view (Barcelona's grid is sent whole).
+// Hexes that depend on the map view: Madrid's grid once the view reaches
+// Madrid (then kept), and the Spain-wide layer for what is on screen.
+// Barcelona's grid is sent whole.
 let view: ViewMsg | null = null;
+let madridCells: Awaited<ReturnType<typeof madridPolygons>> = [];
 let spainCells: { ring: number[]; values: Values }[] = [];
 let viewSeq = 0;
 
-async function refreshSpainCells(): Promise<void> {
+async function refreshViewCells(): Promise<void> {
   const seq = ++viewSeq;
   const v = view;
-  const cells = v ? await cellsInView(v, v.zoom, (lat, lng) => cellAt(lat, lng) !== null) : [];
+  if (v && viewTouchesMadrid(v) && madridCells.length === 0) madridCells = await madridPolygons();
+  const skip = (lat: number, lng: number) => cellAt(lat, lng) !== null || inMadridGrid(lat, lng);
+  const cells = v ? await cellsInView(v, v.zoom, skip) : [];
   if (seq !== viewSeq) return; // a newer view arrived meanwhile
   spainCells = cells;
   sendOverlay();
@@ -408,6 +446,11 @@ function sendOverlay(): void {
     const s = score(cell, settings);
     if (s === null) continue;
     cells.push({ ring, color: ramp(1 - s / 100) });
+  }
+  for (const { cell, ring } of madridCells) {
+    if (settings.hideLowPop && cell.lp) continue;
+    const s = score(cell, settings);
+    if (s !== null) cells.push({ ring, color: ramp(1 - s / 100) });
   }
   for (const { ring, values } of spainCells) {
     const s = score(values, settings);
@@ -441,7 +484,7 @@ async function main(): Promise<void> {
   window.addEventListener('message', (e: MessageEvent) => {
     if (e.source !== window || e.data?.[TAG] !== 'view') return;
     view = e.data as ViewMsg;
-    refreshSpainCells().catch((err) => console.warn(LOG, 'Spain-wide overlay failed', err));
+    refreshViewCells().catch((err) => console.warn(LOG, 'Madrid/Spain-wide overlay failed', err));
   });
   // Idealista swaps the result list in place on some filter changes; new
   // inline config scripts are picked up because parsed scripts are tracked.

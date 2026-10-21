@@ -9,6 +9,7 @@ import (
 	"math"
 	"path"
 	"strings"
+	"unicode/utf8"
 )
 
 // shpRecord is one polygon feature of an ESRI shapefile: its rings already
@@ -26,10 +27,10 @@ func readZippedShapefile(zipPath string, toLonLat func(x, y float64) pt) ([]shpR
 		return nil, err
 	}
 	defer zr.Close()
-	var shpData, dbfData []byte
+	var shpData, dbfData, cpgData []byte
 	for _, f := range zr.File {
 		ext := strings.ToLower(path.Ext(f.Name))
-		if ext != ".shp" && ext != ".dbf" {
+		if ext != ".shp" && ext != ".dbf" && ext != ".cpg" {
 			continue
 		}
 		rc, err := f.Open()
@@ -45,6 +46,8 @@ func readZippedShapefile(zipPath string, toLonLat func(x, y float64) pt) ([]shpR
 			shpData = b
 		} else if ext == ".dbf" && dbfData == nil {
 			dbfData = b
+		} else if ext == ".cpg" && cpgData == nil {
+			cpgData = b
 		}
 	}
 	if shpData == nil || dbfData == nil {
@@ -54,7 +57,8 @@ func readZippedShapefile(zipPath string, toLonLat func(x, y float64) pt) ([]shpR
 	if err != nil {
 		return nil, err
 	}
-	attrs, err := parseDbf(dbfData)
+	isUTF8 := strings.EqualFold(strings.TrimSpace(string(cpgData)), "UTF-8")
+	attrs, err := parseDbf(dbfData, isUTF8)
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +134,9 @@ func parseShp(b []byte, toLonLat func(x, y float64) pt) ([]*Shape, error) {
 	return out, nil
 }
 
-// parseDbf decodes dBASE III rows. Text is read as Latin-1, which is enough
-// for the ASCII code fields used here.
-func parseDbf(b []byte) ([]map[string]string, error) {
+// parseDbf decodes dBASE III rows, as UTF-8 when the .cpg file says so and
+// as Latin-1 otherwise (enough for INE's ASCII code fields).
+func parseDbf(b []byte, isUTF8 bool) ([]map[string]string, error) {
 	if len(b) < 32 {
 		return nil, fmt.Errorf("dbf: bad header")
 	}
@@ -161,6 +165,10 @@ func parseDbf(b []byte) ([]map[string]string, error) {
 		m := make(map[string]string, len(fields))
 		for _, f := range fields {
 			raw := rec[f.offset : f.offset+f.width]
+			if isUTF8 && utf8.Valid(raw) {
+				m[f.name] = strings.TrimSpace(string(raw))
+				continue
+			}
 			r := make([]rune, len(raw))
 			for j, c := range raw {
 				r[j] = rune(c)

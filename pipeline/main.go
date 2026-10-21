@@ -88,21 +88,24 @@ func main() {
 	months := flag.Int("months", 24, "length of the complaint/crime window in months")
 	res := flag.Int("res", 9, "H3 resolution")
 	alpha := flag.Float64("crime-gub-alpha", 0.5, "weight of GUB incidents (vs population) when splitting district crime over barris")
-	only := flag.String("only", "", "build only one layer: bcn (Barcelona grid) or spain (Spain-wide shards)")
+	only := flag.String("only", "", "build only one layer: bcn (Barcelona grid), madrid (Madrid grid) or spain (Spain-wide shards)")
 	flag.Parse()
 	log.SetFlags(0)
 	log.SetPrefix("bcngrid: ")
-	if *only != "" && *only != "bcn" && *only != "spain" {
-		log.Fatalf("-only must be bcn or spain, not %q", *only)
+	if *only != "" && *only != "bcn" && *only != "madrid" && *only != "spain" {
+		log.Fatalf("-only must be bcn, madrid or spain, not %q", *only)
 	}
 	f, err := newFetcher(*cacheDir, *refresh)
 	if err == nil {
 		err = os.MkdirAll(*outDir, 0o755)
 	}
-	if err == nil && *only != "spain" {
+	if err == nil && (*only == "" || *only == "bcn") {
 		err = run(f, *outDir, *months, *res, *alpha)
 	}
-	if err == nil && *only != "bcn" {
+	if err == nil && (*only == "" || *only == "madrid") {
+		err = runMadrid(f, *outDir, *months, *res)
+	}
+	if err == nil && (*only == "" || *only == "spain") {
 		err = runSpain(f, *outDir)
 	}
 	if err != nil {

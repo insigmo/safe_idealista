@@ -247,14 +247,14 @@ func runSpain(f *fetcher, outDir string) error {
 	logf("wrote %d shards to %s (%d KB)", len(keys), dir, bytesTotal/1024)
 
 	idx := esIndex{CellRes: esCellRes, ShardRes: esShardRes, Shards: keys, Meta: Meta{
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		GeneratedAt:  time.Now().UTC().Format(time.RFC3339),
 		H3Resolution: esCellRes,
-		Categories:  []string{"crime", "income"},
-		Weights:     map[string]float64{"crime": 0.35, "income": 0.15},
-		Ranges:      ranges,
-		Sources:     sources,
-		Method:      spainMethod(crimeYear, adrh.Year),
-		Caveats:     spainCaveats,
+		Categories:   []string{"crime", "income"},
+		Weights:      map[string]float64{"crime": 0.35, "income": 0.15},
+		Ranges:       ranges,
+		Sources:      sources,
+		Method:       spainMethod(crimeYear, adrh.Year),
+		Caveats:      spainCaveats,
 		Totals: map[string]int{
 			"sections": len(secs), "municipalities": len(adrh.Munis), "municipalities_with_crime": matched,
 			"population": round(popTotal), "population_with_crime": round(popWithCrime), "cells": len(owner),

@@ -190,7 +190,10 @@ const sampleStepM = 20.0
 // dasymetric allocation). Sections too small to hold a lattice point fall back
 // to their centroid.
 func distributePopulation(secs map[int]*Section, res int) (map[h3.Cell]*Hex, error) {
-	const latRef = 41.39
+	var latRef float64 // mean latitude, for the longitude step
+	for _, s := range secs {
+		latRef += (s.Shape.MinLat + s.Shape.MaxLat) / 2 / float64(len(secs))
+	}
 	dLat := sampleStepM / 111320.0
 	dLon := sampleStepM / (111320.0 * math.Cos(latRef*math.Pi/180))
 	hexes := map[h3.Cell]*Hex{}

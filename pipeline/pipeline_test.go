@@ -157,8 +157,8 @@ func TestINESectionsMatchBarcelona(t *testing.T) {
 			same++
 		}
 		a, b := r.Shape, s.Shape
-		dx += ((a.MinLon+a.MaxLon)-(b.MinLon+b.MaxLon))/2*84000 // metres at 41°N
-		dy += ((a.MinLat+a.MaxLat)-(b.MinLat+b.MaxLat))/2*111000
+		dx += ((a.MinLon + a.MaxLon) - (b.MinLon + b.MaxLon)) / 2 * 84000 // metres at 41°N
+		dy += ((a.MinLat + a.MaxLat) - (b.MinLat + b.MaxLat)) / 2 * 111000
 	}
 	if n < 1000 {
 		t.Fatalf("only %d Barcelona sections compared", n)
@@ -182,6 +182,30 @@ func TestDisplayName(t *testing.T) {
 	} {
 		if got := displayName(in); got != want {
 			t.Errorf("displayName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestMadridClassify(t *testing.T) {
+	cases := []struct {
+		l1, l2 string
+		want   int
+	}{
+		{"Limpieza en espacios públicos", "Limpieza de calles", catDirt},
+		{"Limpieza y pintadas", "Limpieza en vías públicas", catDirt},
+		{"Limpieza y pintadas", "Pintadas y grafitis", catGraffiti},
+		{"Cubos y contenedores", "Vaciado de cubo o contenedor", catDirt},
+		{"Cubos y contenedores", "Nuevo cubo o contenedor", catNone},
+		{"Retirada de elementos", "Muebles abandonados en vía pública", catDirt},
+		{"Retirada de elementos", "Muebles particulares", catNone},
+		{"Ratas y cucarachas", "", catDirt},
+		{"Retirada de elementos", "Animal muerto", catNone},
+		{"Calzadas y aceras", "Desperfecto en acera", catNone},
+		{"zz[Pruebas Betatester]", "Limpieza mobiliario urbano o áreas infantiles", catNone},
+	}
+	for _, c := range cases {
+		if got := madridClassify(c.l1, c.l2); got != c.want {
+			t.Errorf("%s | %s: got %s, want %s", c.l1, c.l2, catLabel(got), catLabel(c.want))
 		}
 	}
 }
