@@ -1,6 +1,6 @@
 # BCN Street Quality — working notes
 
-Status: **Part 1 (data pipeline) done, waiting for review.** Part 2 (Chrome extension) not started; the Idealista findings section is a placeholder.
+Status: Part 1 (data pipeline) is reviewed. Part 2 (extension) is built and tested as described under "How the extension was tested". Installing the packaged extension in a real Chrome is still to do.
 
 ## Datasets used
 
@@ -92,7 +92,35 @@ Full tables are in [`data/rankings.md`](data/rankings.md).
 
 ## Idealista integration findings
 
-*(Part 2: to be filled in after inspecting idealista.com.)*
+Inspected 2026-10-21 in a desktop-width browser (1440×900), on `/alquiler-viviendas/barcelona-barcelona/` and its map view. All selectors live in [`extension/src/selectors.ts`](extension/src/selectors.ts).
+
+### List view (`/alquiler-viviendas/barcelona-barcelona/`, `…/pagina-N.htm`)
+- Server-rendered. Pagination does full page loads (`pagina-2.htm`); there is no infinite scroll. A MutationObserver still watches for cards that get re-rendered.
+- Card: `article.item[data-element-id]`. `data-element-id` is the listing ID. Ads are `article.adv` and have no ID.
+- Title link: `a.item-link` (its `title` attribute is e.g. `Piso en Calle de Mallorca, L'Antiga Esquerra de l'Eixample, Barcelona`). The text sits in `.item-info-container`, and the price is in `.price-row`.
+- **Coordinates:** there are no `lat`/`lng` attributes in the markup. However, an inline `<script>` sets `var config = {…, listingMultimediaCarrousels: {"<id>": {…, "map": {"src": "https://maps.googleapis.com/maps/api/staticmap?…&center=41.37568530%2C2.16067930&…", "addressVisibility": "HIDDEN" | "EXACT"}}}}`. That's the "Mapa de la zona" slide of each card's carousel. The extension reads the `center=` parameter from the script **text** in the DOM. It does not need page globals and makes no requests. On the sample page **30 of 30** listings had it.
+- `addressVisibility: HIDDEN` means the advertiser hid the exact address, so the point is approximate. Those badges are marked `≈`.
+- Fallback when a card has no map entry: take the barri from the title (`…, <barri>, Barcelona`), match it to the grid's barri names (accent- and case-insensitive, plus a small alias table), use the barri average and mark the badge `approx`.
+
+### Map view (`/alquiler-viviendas/barcelona-barcelona/mapa-google`)
+- Note that `/mapa` (without `-google`) is a different page: a static district-picker image ("greymaps"), not the listings map.
+- The listings map is **Google Maps JS API 3.65 ("quarterly")**. It is loaded by Idealista's React component through `@vis.gl/react-google-maps` (`solution_channel=GMP_visgl_rgmlibrary`, `callback=google.maps.__ib__`), uses raster rendering with a cloud `map_id`, and has 0 tilt and 0 heading. The container is `.google-map-container` inside `.multizone-map-container`.
+- No global holds the map instance. **Hook:** in the page's main world, wrap a method on `google.maps.Map.prototype` that the instance calls constantly (`get`, which comes from MVCObject; it was called about 270 times while the map loaded). The first call with `this instanceof google.maps.Map` hands over the instance. Verified live: zoom 12, bounds OK.
+- **Overlay:** a `google.maps.OverlayView` subclass draws one `<canvas>` in the `overlayLayer` pane, projecting hex vertices with `fromLatLngToDivPixel`. Google calls `draw()` on every pan and zoom, so the overlay stays in sync with no extra listeners. Verified live with a test dot on the old town.
+- When the viewport changes, the page fetches `/ajax/listingcontroller/listingmapajaxnopins.ajax?…&zoom=12&northEast=…&southWest=…`. That would be the fallback source of bounds if the prototype hook ever breaks. It is not implemented, because the hook works.
+- Content scripts run in an isolated world and cannot see `google.maps`, so the overlay runs as a second content script with `world: "MAIN"`. The isolated script sends it the hex polygons and values through `window.postMessage`. The data is public, so it's fine that the page can read these messages.
+
+### Other observations
+- Without consent, Idealista shows a Didomi consent banner. The extension does not touch it.
+- No script CSP is set (only `frame-ancestors`), which doesn't affect a content script.
+- Below roughly 1000 px width, Idealista serves a narrow layout without the map.
+
+## How the extension was tested
+
+The packaged extension cannot be installed in the in-app test browser, and that browser blocks public pages from loading `127.0.0.1` scripts. So the pieces were tested separately:
+- **Badges, fallback, filter, settings:** `extension/test/fixture.html` rebuilds Idealista's list markup, including an inline `config.listingMultimediaCarrousels` script, from 8 real listings captured on 2026-10-21, plus synthetic cases: no coordinates (→ barri `approx`), a point outside the city (→ no badge), an ad card, and a card inserted 1.5 s after load. The real content-script bundle runs there on a fake `chrome.storage`. All cases behaved as expected. Hide-red, crime-only re-weighting and all-categories-off were checked by changing settings live.
+- **Map overlay:** the built `page.js` was injected into the live `/mapa-google` page, together with 45 real hexes around Plaça Catalunya. It captured the map instance as soon as the map rendered, attached the overlay and legend, and stayed aligned through pan and zoom from 12 down to about 18 (La Rambla at street level).
+- **Popup:** the built popup was rendered with the fake storage. Checkbox, slider, hide-red and reset all write the expected settings, and the date ranges, caveats and sources show up.
 
 ## Known limitations
 
@@ -102,3 +130,7 @@ Full tables are in [`data/rankings.md`](data/rankings.md).
 - **Freshness:** IRIS lags by ~6 months (the newest file ends 2026-03), Mossos by ~1 month, and GUB is annual (2025 is the newest year). Income is from 2023.
 - The 2017–2019 cleaning-hotspot datasets are not used because they are stale.
 - H3 comes from an experimental (`x/`) package pinned to a master commit. It is checked against the reference in tests.
+- Extension: listing coordinates come from the static-map URL inside an inline script. If Idealista changes that, cards fall back to barri averages taken from the title, and some Idealista zone names (e.g. "Diagonal Mar - La Mar Bella") don't match an official barri, so those cards get no badge.
+- Extension: the map hook depends on `google.maps.Map.prototype.get` being called by the map instance. If Google changes that, the overlay silently doesn't appear (look for `[BCN-SQ]` in the console). Bounds from the page's `listingmapajaxnopins.ajax` requests are the documented fallback, but they are not implemented.
+- Extension: while dragging, the overlay canvas covers only the previous viewport until the map goes idle, so you can see a blank edge for a moment.
+- Extension: the tooltip names the hex's majority barri, which near a border can differ from the barri in Idealista's title.
