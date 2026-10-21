@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BCN Street Quality</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <h1>BCN Street Quality</h1>
+  <p class="sub">Neighbourhood data on Idealista (Barcelona)</p>
+</header>
+
+<section>
+  <label class="switch"><input type="checkbox" id="badges"> Badges on listings</label>
+  <label class="switch"><input type="checkbox" id="overlay"> Map overlay</label>
+  <label class="switch"><input type="checkbox" id="hideRed"> Hide red listings</label>
+  <label class="switch"><input type="checkbox" id="hideLowPop"> Hide hexes with &lt;100 residents</label>
+  <label class="range">Overlay opacity <input type="range" id="opacity" min="0.05" max="1" step="0.05"><output id="opacityOut"></output></label>
+</section>
+
+<section>
+  <h2>Layers and weights</h2>
+  <div id="cats"></div>
+  <button type="button" id="reset">Reset to defaults</button>
+</section>
+
+<section>
+  <h2>Legend</h2>
+  <div class="legend">
+    <span class="pill good">60–100 good</span>
+    <span class="pill mid">40–59 average</span>
+    <span class="pill bad">0–39 poor</span>
+  </div>
+  <div class="ramp" aria-hidden="true"></div>
+  <p class="small">Score = 100 − weighted mean of city-wide percentiles of the enabled layers. Map hexes use the same score. "≈" = advertiser hid the address; "approx" = barri average.</p>
+</section>
+
+<section>
+  <h2>Data</h2>
+  <dl id="ranges"></dl>
+  <h2>Caveats</h2>
+  <ul id="caveats"></ul>
+  <details>
+    <summary>Sources</summary>
+    <ul id="sources"></ul>
+  </details>
+  <p class="small">Bundled data only: no network requests, no analytics.</p>
+</section>
+<script src="popup.js"></script>
+</body>
+</html>
