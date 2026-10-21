@@ -1,17 +1,26 @@
 // Isolated-world content script: badges on listing cards, the "hide red"
-// filter, and feeding hex polygons to the main-world map script (page.ts).
-// It only reads what the page already rendered; it makes no network requests.
-import { barriByName, barriOf, cellAt, cellPolygons, grid, level, ramp, score, type Barri, type Cell, type Values } from './grid';
-import { LOG, TAG, type OverlayMsg } from './protocol';
-import { ADDRESS_HIDDEN, barriFromTitle, CAROUSELS_KEY, SEL, STATIC_MAP_CENTER } from './selectors';
-import { CATEGORIES, CATEGORY_LABELS, loadSettings, onSettingsChanged, type Settings } from './settings';
+// filter, the per-layer panel on a listing's detail page, and feeding hex
+// polygons to the main-world map script (page.ts). Barcelona uses its own
+// detailed grid; everywhere else the Spain-wide layer (spain.ts).
+// It only reads what the page already rendered and the data bundled with the
+// extension; it makes no network requests.
+import { barriByName, barriOf, cellAt, cellPolygons, grid, level, ramp, score, type Barri, type Cell, type Level, type Values } from './grid';
+import { LOG, TAG, type OverlayMsg, type ViewMsg } from './protocol';
+import { ADDRESS_HIDDEN, barriFromTitle, CAROUSELS_KEY, DETAIL_CAROUSEL_KEY, SEL, STATIC_MAP_CENTER } from './selectors';
+import { CATEGORIES, CATEGORY_LABELS, loadSettings, onSettingsChanged, type Category, type Settings } from './settings';
+import { cellsInView, placeAt, spainMeta, type Place } from './spain';
 
 interface Located {
   values: Values;
   cell?: Cell;
   barri?: Barri;
+  place?: Place; // set for the Spain-wide layer
   approx: 'exact' | 'hidden-address' | 'barri';
 }
+
+// Layers shown for each kind of location.
+const BCN_CATEGORIES = CATEGORIES.filter((c) => c !== 'income');
+const SPAIN_CATEGORIES: Category[] = ['crime', 'income'];
 
 let settings: Settings;
 const coords = new Map<string, { lat: number; lng: number; hidden: boolean }>();
@@ -60,19 +69,83 @@ function parseCarousels(): void {
   }
 }
 
-function locate(card: HTMLElement): Located | null {
-  const id = card.getAttribute(SEL.cardIdAttr) ?? '';
-  if (!coords.has(id)) parseCarousels();
-  const c = coords.get(id);
+type Coords = { lat: number; lng: number; hidden: boolean };
+
+// Coordinates win; without them, the barri named in `title` gives its average.
+// Outside Barcelona's grid the answer comes from a data shard, so it is async.
+function locateBy(c: Coords | undefined, title: string): Located | null | Promise<Located | null> {
   if (c) {
+    const approx = c.hidden ? 'hidden-address' : 'exact';
     const hit = cellAt(c.lat, c.lng);
-    if (hit) return { values: hit.cell, cell: hit.cell, barri: barriOf(hit.cell), approx: c.hidden ? 'hidden-address' : 'exact' };
-    return null; // outside Barcelona's grid
+    if (hit) return { values: hit.cell, cell: hit.cell, barri: barriOf(hit.cell), approx };
+    return placeAt(c.lat, c.lng).then((place) => (place ? { values: place.values, place, approx } : null));
   }
-  const title = card.querySelector<HTMLAnchorElement>(SEL.cardTitle)?.title ?? '';
   const name = barriFromTitle(title);
   const b = name ? barriByName(name) : null;
   return b ? { values: b, barri: b, approx: 'barri' } : null;
+}
+
+function locate(card: HTMLElement): Located | null | Promise<Located | null> {
+  const id = card.getAttribute(SEL.cardIdAttr) ?? '';
+  if (!coords.has(id)) parseCarousels();
+  return locateBy(coords.get(id), card.querySelector<HTMLAnchorElement>(SEL.cardTitle)?.title ?? '');
+}
+
+function locateDetail(): Located | null | Promise<Located | null> {
+  let c: Coords | undefined;
+  for (const s of Array.from(document.scripts)) {
+    if (s.src || !s.textContent?.includes(DETAIL_CAROUSEL_KEY)) continue;
+    let obj: { map?: { src?: string; addressVisibility?: string } } | null;
+    try {
+      obj = objectAfter(s.textContent, DETAIL_CAROUSEL_KEY) as typeof obj;
+    } catch {
+      continue; // the key in some other script, not followed by JSON
+    }
+    const m = obj?.map?.src?.match(STATIC_MAP_CENTER);
+    if (m) {
+      c = { lat: Number(m[1]), lng: Number(m[2]), hidden: obj?.map?.addressVisibility === ADDRESS_HIDDEN };
+      break;
+    }
+  }
+  return locateBy(c, document.querySelector(SEL.detailLocation)?.textContent ?? '');
+}
+
+function spainNotes(place: Place): string[] {
+  const r = spainMeta()?.date_ranges;
+  const { muni, income } = place;
+  const notes = [
+    muni.c1k !== undefined
+      ? `Crime*: ${muni.c1k} street crimes per 1,000 residents in ${r?.crime.from.slice(0, 4) ?? 'the last full year'}, for all of ${muni.n}.`
+      : `No crime figure: the Interior Ministry publishes it only for municipalities over 20,000 residents (${muni.n}: ${muni.pop.toLocaleString('en')}).`,
+  ];
+  if (income !== undefined) notes.push(`Income: €${income.toLocaleString('en')} net per person in ${r?.income.from ?? 'the latest year'}, this census section.`);
+  return notes;
+}
+
+// Notes shared by the card tooltip and the detail panel.
+function locationNotes(loc: Located): string[] {
+  if (loc.place) {
+    const notes = spainNotes(loc.place);
+    if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
+    if (loc.place.muni.c1k !== undefined) notes.push('* One crime figure per municipality: it does not tell streets apart.');
+    return notes;
+  }
+  const notes: string[] = [];
+  if (loc.cell) {
+    const r = loc.cell.n_raw;
+    notes.push(`Complaints in this hex (${grid.meta.date_ranges.iris.from} … ${grid.meta.date_ranges.iris.to}): dirt ${r.dirt}, smell ${r.smell}, graffiti ${r.graffiti}, incivism ${r.incivism}. Residents ≈ ${loc.cell.pop}.`);
+    if (loc.cell.lp) notes.push('Few residents here: values are close to the city average.');
+  }
+  if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
+  if (loc.approx === 'barri') notes.push('approx: no coordinates for this listing, so this is the barri average.');
+  notes.push('* Crime is official only per district; split over barris by estimate.');
+  return notes;
+}
+
+// A hex can straddle a barri border, so name the area loosely.
+function areaName(loc: Located): string {
+  if (loc.place) return loc.place.muni.n;
+  return loc.barri ? (loc.approx === 'barri' ? loc.barri.name : `${loc.barri.name} area`) : 'Barcelona';
 }
 
 // ---- tooltip ----------------------------------------------------------
@@ -86,36 +159,27 @@ function showTip(badge: HTMLElement, loc: Located): void {
   const head = document.createElement('div');
   head.className = 'bcnsq-tip-head';
   const s = score(loc.values, settings);
-  // A hex can straddle a barri border, so name the area loosely.
-  const area = loc.barri ? (loc.approx === 'barri' ? loc.barri.name : `${loc.barri.name} area`) : 'Barcelona';
-  head.textContent = `${area} · score ${s ?? '–'}/100`;
+  head.textContent = `${areaName(loc)} · score ${s ?? '–'}/100`;
   tip.append(head);
-  for (const c of CATEGORIES) {
+  for (const c of loc.place ? SPAIN_CATEGORIES : BCN_CATEGORIES) {
+    const v = loc.values[c];
     const row = document.createElement('div');
-    row.className = 'bcnsq-row' + (settings.enabled[c] ? '' : ' bcnsq-off');
+    row.className = 'bcnsq-row' + (settings.enabled[c] && v !== undefined ? '' : ' bcnsq-off');
     const label = document.createElement('span');
     label.textContent = CATEGORY_LABELS[c] + (c === 'crime' ? '*' : '');
     const bar = document.createElement('span');
     bar.className = 'bcnsq-bar';
     const fill = document.createElement('span');
-    fill.style.width = `${loc.values[c]}%`;
-    fill.style.background = ramp(loc.values[c] / 100);
+    fill.style.width = `${v ?? 0}%`;
+    fill.style.background = ramp((v ?? 0) / 100);
     bar.append(fill);
     const num = document.createElement('span');
-    num.textContent = String(loc.values[c]);
+    num.textContent = v === undefined ? '–' : String(v);
     row.append(label, bar, num);
     tip.append(row);
   }
-  const notes: string[] = ['Bars: city-wide percentile, 0 = best, 100 = worst.'];
-  if (loc.cell) {
-    const r = loc.cell.n_raw;
-    notes.push(`Complaints in this hex (${grid.meta.date_ranges.iris.from} … ${grid.meta.date_ranges.iris.to}): dirt ${r.dirt}, smell ${r.smell}, graffiti ${r.graffiti}, incivism ${r.incivism}. Residents ≈ ${loc.cell.pop}.`);
-    if (loc.cell.lp) notes.push('Few residents here: values are close to the city average.');
-  }
-  if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
-  if (loc.approx === 'barri') notes.push('approx: no coordinates on this card, so this is the barri average.');
-  notes.push('* Crime is official only per district; split over barris by estimate.');
-  for (const n of notes) {
+  const scope = loc.place ? 'Spain-wide' : 'city-wide';
+  for (const n of [`Bars: ${scope} percentile, 0 = best, 100 = worst.`, ...locationNotes(loc)]) {
     const p = document.createElement('div');
     p.className = 'bcnsq-note';
     p.textContent = n;
@@ -135,9 +199,25 @@ function hideTip(): void {
 // ---- badges -------------------------------------------------------------
 
 const located = new WeakMap<HTMLElement, Located | null>();
+const locating = new WeakSet<HTMLElement>();
 
 function renderCard(card: HTMLElement): void {
-  if (!located.has(card)) located.set(card, locate(card));
+  if (!located.has(card)) {
+    if (locating.has(card)) return;
+    const l = locate(card);
+    if (l instanceof Promise) {
+      locating.add(card);
+      l.catch((e) => {
+        console.warn(LOG, 'Spain-wide lookup failed', e);
+        return null;
+      }).then((v) => {
+        located.set(card, v);
+        safe('badge', renderCard)(card);
+      });
+      return;
+    }
+    located.set(card, l);
+  }
   const loc = located.get(card) ?? null;
   let badge = card.querySelector<HTMLElement>(':scope .bcnsq-badge');
   const s = loc ? score(loc.values, settings) : null;
@@ -163,15 +243,140 @@ function renderCard(card: HTMLElement): void {
   const lv = level(s);
   badge.dataset.level = lv;
   const mark = loc.approx === 'hidden-address' ? ' ≈' : loc.approx === 'barri' ? ' approx' : '';
-  const text = `Street ${s}${mark}`;
+  // Barcelona's grid scores the street; the Spain-wide layer only the area.
+  const kind = loc.place ? 'Area' : 'Street';
+  const text = `${kind} ${s}${mark}`;
   // Only touch the DOM on change: our own writes would re-trigger the observer.
   if (badge.textContent !== text) badge.textContent = text;
-  badge.setAttribute('aria-label', `BCN street quality score ${s} of 100${mark ? ', approximate' : ''}`);
+  badge.setAttribute('aria-label', `${kind} quality score ${s} of 100${mark ? ', approximate' : ''}`);
   card.classList.toggle('bcnsq-hidden', settings.hideRed && lv === 'bad');
+}
+
+// ---- detail page panel --------------------------------------------------------
+
+// Safety is crime read the other way round, so that its word and bar say how
+// safe the area is rather than how much crime it has.
+const PANEL_ROWS: { c: Category; label: string; inverse?: boolean; minor?: boolean }[] = [
+  { c: 'dirt', label: 'Dirt' },
+  { c: 'graffiti', label: 'Graffiti' },
+  { c: 'crime', label: 'Safety*', inverse: true },
+  { c: 'smell', label: 'Smell', minor: true },
+  { c: 'incivism', label: 'Incivism', minor: true },
+];
+const PROBLEM_WORD: Record<Level, string> = { good: 'Low', mid: 'Medium', bad: 'High' };
+const SAFETY_WORD: Record<Level, string> = { good: 'High', mid: 'Medium', bad: 'Low' };
+const LEVEL_WORD: Record<Level, string> = { good: 'Good', mid: 'Average', bad: 'Poor' };
+const VERDICT: Record<Level, string> = {
+  good: 'Cleaner and safer than most of Barcelona.',
+  mid: 'Around the city average: worth walking the street before deciding.',
+  bad: 'Dirtier or less safe than most of Barcelona.',
+};
+// Outside Barcelona: municipal crime and section income only. Income reads
+// the other way round too, so its bar shows how well-off the area is.
+const SPAIN_ROWS: typeof PANEL_ROWS = [
+  { c: 'crime', label: 'Safety*', inverse: true },
+  { c: 'income', label: 'Income', inverse: true },
+];
+const SPAIN_VERDICT: Record<Level, string> = {
+  good: 'Better than most of Spain on the layers shown.',
+  mid: 'Around the Spanish average: worth walking the street before deciding.',
+  bad: 'Worse than most of Spain on the layers shown.',
+};
+
+let detailLoc: Located | null | undefined | 'pending';
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  e.className = className;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function renderDetail(): void {
+  const anchor = document.querySelector(SEL.detailPriceRow) ?? document.querySelector(SEL.detailTitle);
+  if (!anchor) return; // not a detail page
+  if (detailLoc === undefined) {
+    const l = locateDetail();
+    if (l instanceof Promise) {
+      detailLoc = 'pending';
+      l.catch((e) => {
+        console.warn(LOG, 'Spain-wide lookup failed', e);
+        return null;
+      }).then((v) => {
+        detailLoc = v;
+        safe('panel', renderDetail)();
+      });
+      return;
+    }
+    detailLoc = l;
+  }
+  if (detailLoc === 'pending') return;
+  const loc = detailLoc;
+  const old = document.querySelector<HTMLElement>('.bcnsq-panel');
+  if (!settings.badges || !loc) {
+    old?.remove();
+    return;
+  }
+  const s = score(loc.values, settings);
+  // Only touch the DOM on change: our own writes would re-trigger the observer.
+  const key = JSON.stringify([s, settings.enabled]);
+  if (old?.dataset.key === key) return;
+
+  const panel = el('section', 'bcnsq-panel');
+  panel.dataset.key = key;
+  panel.setAttribute('aria-label', loc.place ? 'Area quality' : 'Street quality');
+  const head = el('div', 'bcnsq-panel-head');
+  const lv = s === null ? null : level(s);
+  const big = el('span', 'bcnsq-score', s === null ? '–' : String(s));
+  if (lv) big.dataset.level = lv;
+  const titles = el('div', '');
+  titles.append(
+    el('div', 'bcnsq-panel-title', `${loc.place ? 'Area' : 'Street'} quality: ${lv ? LEVEL_WORD[lv] : 'all layers are off'}`),
+    el('div', 'bcnsq-panel-sub', `${areaName(loc)}${loc.approx === 'exact' ? '' : loc.approx === 'barri' ? ' · barri average' : ' · approximate location'} · score out of 100`),
+  );
+  head.append(big, titles);
+  panel.append(head);
+  if (lv) panel.append(el('p', 'bcnsq-verdict', (loc.place ? SPAIN_VERDICT : VERDICT)[lv]));
+
+  for (const { c, label, inverse, minor } of loc.place ? SPAIN_ROWS : PANEL_ROWS) {
+    const p = loc.values[c];
+    if (p === undefined) {
+      const row = el('div', 'bcnsq-prow bcnsq-off');
+      row.title = 'No data for this place.';
+      row.append(el('span', '', label), el('span', 'bcnsq-bar'), el('span', 'bcnsq-chip bcnsq-nodata', 'No data'), el('span', 'bcnsq-num', '–'));
+      panel.append(row);
+      continue;
+    }
+    const rowLevel = level(100 - p);
+    const shown = inverse ? 100 - p : p;
+    const row = el('div', 'bcnsq-prow' + (minor ? ' bcnsq-minor' : '') + (settings.enabled[c] ? '' : ' bcnsq-off'));
+    if (!settings.enabled[c]) row.title = 'Switched off in the extension settings: not counted in the score.';
+    const bar = el('span', 'bcnsq-bar');
+    const fill = el('span', '');
+    fill.style.width = `${shown}%`;
+    fill.style.background = ramp(p / 100);
+    bar.append(fill);
+    const chip = el('span', 'bcnsq-chip', (inverse ? SAFETY_WORD : PROBLEM_WORD)[rowLevel]);
+    chip.dataset.level = rowLevel;
+    row.append(el('span', '', label), bar, chip, el('span', 'bcnsq-num', String(shown)));
+    panel.append(row);
+  }
+
+  const notes = [
+    loc.place
+      ? 'Safety and income: Spain-wide percentile, 100 = safest / highest income. Score: 100 = best. Same data as the map overlay.'
+      : 'Dirt, graffiti, smell, incivism: city-wide percentile, 0 = least, 100 = most. Safety and score: 100 = best. Same data as the map overlay.',
+    ...locationNotes(loc),
+  ];
+  for (const n of notes) panel.append(el('div', 'bcnsq-note', n));
+
+  if (old) old.replaceWith(panel);
+  else anchor.insertAdjacentElement('afterend', panel);
 }
 
 function renderAll(): void {
   document.querySelectorAll<HTMLElement>(SEL.card).forEach(safe('badge', renderCard));
+  safe('panel', renderDetail)();
 }
 
 // ---- map overlay ------------------------------------------------------------
@@ -182,6 +387,20 @@ function overlayTitle(): string {
   return on.length === CATEGORIES.length ? 'score' : `score (${on.map((c) => CATEGORY_LABELS[c]).join(', ')})`;
 }
 
+// Spain-wide hexes for the current map view (Barcelona's grid is sent whole).
+let view: ViewMsg | null = null;
+let spainCells: { ring: number[]; values: Values }[] = [];
+let viewSeq = 0;
+
+async function refreshSpainCells(): Promise<void> {
+  const seq = ++viewSeq;
+  const v = view;
+  const cells = v ? await cellsInView(v, v.zoom, (lat, lng) => cellAt(lat, lng) !== null) : [];
+  if (seq !== viewSeq) return; // a newer view arrived meanwhile
+  spainCells = cells;
+  sendOverlay();
+}
+
 function sendOverlay(): void {
   const cells = [];
   for (const { cell, ring } of cellPolygons) {
@@ -189,6 +408,10 @@ function sendOverlay(): void {
     const s = score(cell, settings);
     if (s === null) continue;
     cells.push({ ring, color: ramp(1 - s / 100) });
+  }
+  for (const { ring, values } of spainCells) {
+    const s = score(values, settings);
+    if (s !== null) cells.push({ ring, color: ramp(1 - s / 100) });
   }
   const msg: OverlayMsg = { [TAG]: 'overlay', enabled: settings.overlay, opacity: settings.opacity, title: overlayTitle(), cells };
   window.postMessage(msg, window.location.origin);
@@ -215,6 +438,11 @@ async function main(): Promise<void> {
     safe('overlay', sendOverlay)();
   });
   window.addEventListener('scroll', hideTip, { passive: true });
+  window.addEventListener('message', (e: MessageEvent) => {
+    if (e.source !== window || e.data?.[TAG] !== 'view') return;
+    view = e.data as ViewMsg;
+    refreshSpainCells().catch((err) => console.warn(LOG, 'Spain-wide overlay failed', err));
+  });
   // Idealista swaps the result list in place on some filter changes; new
   // inline config scripts are picked up because parsed scripts are tracked.
   window.addEventListener('pageshow', () => {

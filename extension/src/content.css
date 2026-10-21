@@ -34,3 +34,40 @@ article.bcnsq-hidden { display: none !important; }
 .bcnsq-bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
 .bcnsq-bar > span { display: block; height: 100%; }
 .bcnsq-note { margin-top: 6px; color: #555; font-size: 12px; }
+
+/* Detail page panel (/inmueble/<id>/) */
+.bcnsq-panel {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  max-width: 520px;
+  background: #fff;
+  color: #222;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font: 13px/1.4 system-ui, sans-serif;
+}
+.bcnsq-panel-head { display: flex; align-items: center; gap: 12px; }
+.bcnsq-score {
+  flex: none;
+  min-width: 44px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #767676;
+  color: #fff;
+  font: 700 22px/1 system-ui, sans-serif;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bcnsq-panel-title { font-weight: 700; font-size: 15px; }
+.bcnsq-panel-sub { color: #555; font-size: 12px; }
+.bcnsq-verdict { margin: 8px 0 6px; }
+.bcnsq-prow { display: grid; grid-template-columns: 76px 1fr 64px 28px; align-items: center; gap: 8px; margin: 4px 0; font-weight: 600; }
+.bcnsq-prow.bcnsq-minor { font-weight: 400; color: #444; }
+.bcnsq-prow.bcnsq-off { opacity: 0.4; }
+.bcnsq-chip { padding: 1px 0; border-radius: 9px; font-size: 12px; font-weight: 600; text-align: center; color: #fff; }
+.bcnsq-num { text-align: right; font-variant-numeric: tabular-nums; }
+.bcnsq-score[data-level='good'], .bcnsq-chip[data-level='good'] { background: #23722e; }
+.bcnsq-score[data-level='mid'], .bcnsq-chip[data-level='mid'] { background: #e8b400; color: #1f2328; }
+.bcnsq-score[data-level='bad'], .bcnsq-chip[data-level='bad'] { background: #c0392b; }
+.bcnsq-panel .bcnsq-bar { height: 8px; border-radius: 4px; }
+.bcnsq-chip.bcnsq-nodata { background: #767676; }

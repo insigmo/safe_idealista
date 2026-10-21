@@ -88,22 +88,29 @@ func main() {
 	months := flag.Int("months", 24, "length of the complaint/crime window in months")
 	res := flag.Int("res", 9, "H3 resolution")
 	alpha := flag.Float64("crime-gub-alpha", 0.5, "weight of GUB incidents (vs population) when splitting district crime over barris")
+	only := flag.String("only", "", "build only one layer: bcn (Barcelona grid) or spain (Spain-wide shards)")
 	flag.Parse()
 	log.SetFlags(0)
 	log.SetPrefix("bcngrid: ")
-	if err := run(*cacheDir, *outDir, *refresh, *months, *res, *alpha); err != nil {
+	if *only != "" && *only != "bcn" && *only != "spain" {
+		log.Fatalf("-only must be bcn or spain, not %q", *only)
+	}
+	f, err := newFetcher(*cacheDir, *refresh)
+	if err == nil {
+		err = os.MkdirAll(*outDir, 0o755)
+	}
+	if err == nil && *only != "spain" {
+		err = run(f, *outDir, *months, *res, *alpha)
+	}
+	if err == nil && *only != "bcn" {
+		err = runSpain(f, *outDir)
+	}
+	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(cacheDir, outDir string, refresh bool, months, res int, alpha float64) error {
-	f, err := newFetcher(cacheDir, refresh)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
-	}
+func run(f *fetcher, outDir string, months, res int, alpha float64) error {
 	var sources []Source
 	ranges := map[string]Range{}
 

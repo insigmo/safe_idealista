@@ -1,7 +1,7 @@
 // Runs in the page's main world (manifest "world": "MAIN") so it can reach
 // google.maps. It captures Idealista's map instance and draws the hex overlay
 // sent by the content script. Everything is wrapped so a failure only logs.
-import { LOG, TAG, type OverlayMsg } from './protocol';
+import { LOG, TAG, type OverlayMsg, type ViewMsg } from './protocol';
 
 const maps = new Set<google.maps.Map>();
 let latest: OverlayMsg | null = null;
@@ -127,7 +127,7 @@ function updateLegend(map: google.maps.Map): void {
   const stops = Array.from({ length: 6 }, (_, i) => `hsl(${120 - i * 24},75%,45%)`).join(',');
   legend.innerHTML = '';
   const title = document.createElement('div');
-  title.textContent = `BCN Street Quality · ${latest.title}`;
+  title.textContent = `Street Quality · ${latest.title}`;
   title.style.fontWeight = '600';
   const bar = document.createElement('div');
   bar.style.cssText = `height:8px;margin:4px 0 2px;border-radius:2px;background:linear-gradient(90deg,${stops})`;
@@ -137,10 +137,28 @@ function updateLegend(map: google.maps.Map): void {
   legend.append(title, bar, ends);
 }
 
+function postView(map: google.maps.Map): void {
+  const b = map.getBounds();
+  const zoom = map.getZoom();
+  if (!b || zoom === undefined) return;
+  const ne = b.getNorthEast();
+  const sw = b.getSouthWest();
+  const msg: ViewMsg = { [TAG]: 'view', north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng(), zoom };
+  window.postMessage(msg, window.location.origin);
+}
+
+let idleListener: google.maps.MapsEventListener | null = null;
+
 function sync(): void {
   try {
     const map = currentMap();
-    if (!map || !latest) return;
+    if (!map) return;
+    if (attachedTo !== map) {
+      idleListener?.remove();
+      idleListener = map.addListener('idle', () => postView(map));
+      postView(map);
+    }
+    if (!latest) return;
     if (attachedTo !== map) {
       overlay?.setMap(null);
       overlay = makeOverlay();

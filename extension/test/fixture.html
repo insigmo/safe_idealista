@@ -24,6 +24,10 @@ var config = {
   favoriteFirstTime: true
 };
 </script>
+<!-- Synthetic listings elsewhere in Spain (Spain-wide layer). -->
+<script>
+var config3 = { listingMultimediaCarrousels: {"900000020":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=40.40860000%2C-3.70190000&zoom=16","addressVisibility":"EXACT"}},"900000021":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=37.38360000%2C-6.00300000&zoom=16","addressVisibility":"HIDDEN"}},"900000022":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=28.13840000%2C-15.43200000&zoom=16","addressVisibility":"EXACT"}},"900000023":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=42.28860000%2C3.27790000&zoom=16","addressVisibility":"EXACT"}},"900000024":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=36.00000000%2C-4.00000000&zoom=16","addressVisibility":"EXACT"}}} };
+</script>
 </head>
 <body>
 <main id="list"></main>
@@ -40,8 +44,15 @@ var config = {
     // synthetic: no carousel entry → barri fallback ("approx")
     ['900000002', 'Piso en Calle de Verdi, Vila de Gràcia, Barcelona', '1.400', '2 hab.'],
     ['900000003', 'Ático en Calle Major, Sarrià, Barcelona', '2.100', '3 hab.'],
-    // synthetic: coordinates outside the city grid (L'Hospitalet) → no badge
+    // synthetic: coordinates outside the city grid (L'Hospitalet) → Spain-wide "Area" badge
     ['900000001', "Piso en Rambla de la Marina, L'Hospitalet de Llobregat", '1.100', '2 hab.'],
+    // synthetic, Spain-wide layer: big cities, the Canaries (projection check),
+    // a town too small for crime data (income only) and a point at sea (no badge)
+    ['900000020', 'Piso en Calle del Ave María, Lavapiés-Embajadores, Madrid', '1.350', '2 hab.'],
+    ['900000021', 'Piso en Calle Betis, Triana, Sevilla', '1.100', '2 hab.'],
+    ['900000022', 'Piso en Calle Triana, Triana, Las Palmas de Gran Canaria', '950', '2 hab.'],
+    ['900000023', 'Casa en Riba Pitxot, Cadaqués', '2.400', '3 hab.'],
+    ['900000024', 'Barco en Mar de Alborán', '500', '1 hab.'],
   ];
   function card([id, title, price, details]) {
     const a = document.createElement('article');

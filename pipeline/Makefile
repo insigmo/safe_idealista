@@ -3,11 +3,19 @@ export CGO_ENABLED = 0
 
 DATA := ../data
 
-.PHONY: data refresh test vet
+.PHONY: data bcn spain refresh test vet
 
-# Download (cached) sources and regenerate grid.json + review artefacts.
+# Download (cached) sources and regenerate grid.json + review artefacts and
+# the Spain-wide shards in data/spain/.
 data:
 	go run . -cache .cache -out $(DATA)
+
+# One layer only: Barcelona's grid, or the Spain-wide shards.
+bcn:
+	go run . -cache .cache -out $(DATA) -only bcn
+
+spain:
+	go run . -cache .cache -out $(DATA) -only spain
 
 # Same, but re-download every source file.
 refresh:

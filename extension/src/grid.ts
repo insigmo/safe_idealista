@@ -29,16 +29,18 @@ interface GridFile { meta: Meta; cells: Record<string, Cell>; barris: Record<str
 
 export const grid = gridJson as unknown as GridFile;
 
-export type Values = Pick<Cell, Category>;
+// Percentiles (0 best … 100 worst) of the layers that exist at a location.
+export type Values = Partial<Record<Category, number>>;
 
-// Weighted badness (0 best … 100 worst) over the enabled categories, turned
-// into a score where 100 is best. Null when every category is switched off.
+// Weighted badness (0 best … 100 worst) over the enabled categories that have
+// a value here, turned into a score where 100 is best. Null when none is left.
 export function score(v: Values, s: Settings): number | null {
   let sum = 0;
   let wsum = 0;
   for (const c of CATEGORIES) {
-    if (!s.enabled[c] || s.weights[c] <= 0) continue;
-    sum += s.weights[c] * v[c];
+    const x = v[c];
+    if (x === undefined || !s.enabled[c] || s.weights[c] <= 0) continue;
+    sum += s.weights[c] * x;
     wsum += s.weights[c];
   }
   return wsum === 0 ? null : Math.round(100 - sum / wsum);

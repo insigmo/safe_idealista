@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Fixture: Idealista listing detail</title>
+<style>
+  body { font: 14px/1.4 Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 16px; }
+  main { max-width: 760px; margin: auto; background: #fff; padding: 16px 44px; }
+  .main-info__title-main { font-size: 24px; font-weight: normal; margin: 0; }
+  .main-info__title-minor { display: block; color: #555; }
+  .info-data { margin: 8px 0; }
+  .price { font-size: 26px; }
+  nav { font-size: 13px; margin-bottom: 12px; }
+</style>
+<!-- Markup and config shape of https://www.idealista.com/inmueble/112873935/
+     as captured on 2026-10-21. ?case= picks the listing:
+     raval (real, address hidden) | tres-torres | sagrada-familia (exact)
+     | no-coords (barri from the location line) | outside (L'Hospitalet). -->
+<script>
+  const CASES = {
+    raval: { center: '41.38202860%2C2.16966330', vis: 'HIDDEN', street: "Calle d'en Xuclà", where: 'El Raval, Barcelona' },
+    'tres-torres': { center: '41.39850000%2C2.13000000', vis: 'EXACT', street: 'Calle de Ganduxer', where: 'Les Tres Torres, Barcelona' },
+    'sagrada-familia': { center: '41.40360000%2C2.17440000', vis: 'EXACT', street: 'Calle de Mallorca', where: 'La Sagrada Família, Barcelona' },
+    'no-coords': { center: null, street: 'Calle de Verdi', where: 'Vila de Gràcia, Barcelona' },
+    outside: { center: '41.35900000%2C2.10000000', vis: 'EXACT', street: 'Rambla de la Marina', where: "L'Hospitalet de Llobregat" },
+  };
+  const c = CASES[new URLSearchParams(location.search).get('case')] ?? CASES.raval;
+  const carousel = { topPicture: null, totalMultimedias: 1, multimedias: [], referencePictures: { hasReferencePictures: false, title: '' } };
+  if (c.center) carousel.map = { src: `https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=${c.center}&maptype=roadmap&channel=map_detail&zoom=16`, title: 'Mapa de la zona', addressVisibility: c.vis, width: 720, height: 492 };
+  // The real page writes this as a JS object literal with a JSON value.
+  document.write(`<script>
+    var config = {
+        locale: 'es',
+        propertyId: 112873935,
+        multimediaCarrousel: ${JSON.stringify(carousel)},
+        dynamicMapKey: 'K',
+    };
+  <\/script>`);
+</script>
+</head>
+<body>
+<main class="detail-container">
+  <section class="detail-info">
+    <section class="detail-content-wrapper">
+      <nav class="sticky-bar-detail"><a href="?case=raval">raval</a> · <a href="?case=tres-torres">tres-torres</a> · <a href="?case=sagrada-familia">sagrada-familia</a> · <a href="?case=no-coords">no-coords</a> · <a href="?case=outside">outside</a></nav>
+      <div class="main-info__title">
+        <h1><span class="main-info__title-main"></span></h1>
+        <span class="main-info__title-block"><span class="main-info__title-minor"></span></span>
+      </div>
+      <div class="info-data">
+        <span class="info-data-price"><span class="txt-bold">950</span> €/mes</span>
+        <span><span>72</span> m²</span> <span><span>2</span> hab.</span>
+      </div>
+      <div class="info-features">Comentario del anunciante…</div>
+    </section>
+  </section>
+</main>
+<script>
+  document.querySelector('.main-info__title-main').textContent = `Alquiler de piso en ${c.street}`;
+  document.querySelector('.main-info__title-minor').textContent = c.where;
+</script>
+<script src="harness.js"></script>
+</body>
+</html>

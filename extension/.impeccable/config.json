@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "files": [
+          "test/detail.html"
+        ],
+        "createdAt": "2026-10-21T15:18:41.112Z",
+        "reason": "Claude: test fixture imitates Idealista's own page font (Arial), same as test/fixture.html; not shipped UI"
+      }
+    ]
+  }
+}

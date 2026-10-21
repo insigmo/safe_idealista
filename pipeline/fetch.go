@@ -48,14 +48,11 @@ func (f *fetcher) get(rawURL, name string) (string, error) {
 		return path, nil
 	}
 	logf("download %s", rawURL)
-	resp, err := f.client.Get(rawURL)
+	resp, err := f.open(rawURL)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GET %s: %s", rawURL, resp.Status)
-	}
 	tmp := path + ".part"
 	out, err := os.Create(tmp)
 	if err != nil {
@@ -69,6 +66,36 @@ func (f *fetcher) get(rawURL, name string) (string, error) {
 		return "", err
 	}
 	return path, os.Rename(tmp, path)
+}
+
+// open starts a GET and fails on any status but 200. Some government portals
+// refuse Go's default user agent, so send a descriptive one.
+func (f *fetcher) open(rawURL string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; bcngrid open-data pipeline)")
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("GET %s: %s", rawURL, resp.Status)
+	}
+	return resp, nil
+}
+
+// fresh downloads a small index page or API answer without caching it, so
+// that new releases are always seen.
+func (f *fetcher) fresh(rawURL string) ([]byte, error) {
+	resp, err := f.open(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
 }
 
 type ckanResource struct {

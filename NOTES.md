@@ -1,4 +1,4 @@
-# BCN Street Quality — working notes
+# Street Quality Spain — working notes
 
 Status: Part 1 (data pipeline) is reviewed. Part 2 (extension) is built and tested as described under "How the extension was tested". Installing the packaged extension in a real Chrome is still to do.
 
@@ -90,6 +90,35 @@ Full tables are in [`data/rankings.md`](data/rankings.md).
 - **Top 2 = Sarrià–Sant Gervasi** (Tres Torres 83, Bonanova 82). Galvany is 8th and Sarrià 11th. By district, Sarrià–Sant Gervasi ranks first (74) and Ciutat Vella last (8).
 - **Notable: Nou Barris ranks second by district (72).** Roquetes, Porta, Prosperitat, Trinitat Nova and Ciutat Meridiana are all in the top 10. Mossos crime per resident there really is low (≈30–40 per 1k per year vs 250–320 in Ciutat Vella). But its complaint percentiles are low partly because **lower-income areas file fewer IRIS complaints**. This is the reporting-bias caveat showing up in the data.
 
+## Spain-wide layer (outside Barcelona)
+
+Added 2026-10-21 so the extension works on any Idealista search in Spain. The Barcelona grid above stays as it is; everywhere else (including Barcelona's suburbs) the extension uses this layer. Code: [`pipeline/spain.go`](pipeline/spain.go), [`extension/src/spain.ts`](extension/src/spain.ts).
+
+### What exists nationally
+
+Barcelona's complaint layers (dirt, smell, graffiti, incivism) come from the city's own IRIS register, which has no national counterpart. Some big cities publish their own complaint registers, but they need a separate pipeline each. What does cover the whole country:
+
+| Layer | Source | How it is fetched | Granularity | In the current build |
+|---|---|---|---|---|
+| Street crime | Ministerio del Interior, *Balance de Criminalidad* (Portal Estadístico de Criminalidad) | newest 4th-quarter release listed on `balances.html`, municipal table (`…Municipios mayores de 20.000 habitantes e islas`) as `csv_bdsc` from the JAXI export (`/sec/jaxiPx/files/_px/es/csv_bdsc/DatosBalanceAnt/l0/<file>.csv_bdsc`) | municipality, **only those over 20,000 residents** (427 of 8,134, 70% of residents), yearly | 2025 (table 1509012) |
+| Income, residents | INE, *Atlas de Distribución de Renta de los Hogares* (operation 353) | table list from `servicios.ine.es/wstempus/js/ES/TABLAS_OPERACION/353`, tables as `jaxiT3/files/t/es/csv_bdsc/<id>.csv`. The list has one table per province plus one for all of Spain (30824 income, 30832 demographics, ~400 MB each); the pipeline stops once a table covers the whole country | census section (36,457), municipality | income 2024, population 2024 |
+| Section boundaries | INE, *Cartografía digitalizada de secciones censales* | `ine.es/prodyser/cartografia/seccionado_<year>.zip`, shapefile in ETRS89 / UTM 30 for all of Spain (the Canaries too) | census section | 1 January 2025 (matches ADRH 2024: 100% of codes) |
+
+Crime types counted: Balance types 1–10 (homicide and attempts, assault, kidnapping, sexual offences, robbery with violence, burglary, theft, vehicle theft, drug trafficking). "11. Resto de criminalidad convencional" and cybercrime are left out, as fraud is in Barcelona. Catalonia, the Basque Country and Navarre are included: the Balance carries Mossos, Ertzaintza and Policía Foral figures.
+
+### Method
+
+1. **Crime rate** = street crimes in the year ÷ municipal residents (ADRH). Percentile is population-weighted across the 427 municipalities: 76 for Madrid means 76% of the residents covered live somewhere with a lower rate. One value per municipality.
+2. **Income** = net income per person per census section. Percentile population-weighted across all sections and inverted for the score (0 = highest income).
+3. **Score** = 100 − weighted mean of the two, default weights crime 35, income 15 (popup-adjustable, income can be switched off). Without a crime figure, the score is income alone.
+4. **Location index:** the boundaries are converted from UTM 30 with Krüger's series ([`pipeline/utm.go`](pipeline/utm.go); checked against Barcelona's own WGS84 section geometry: mean shift 0.5 m, 98.5% of points in the same section). Every H3 res-9 cell goes to the section containing its centre (sections smaller than a cell get res-10 cells). Where every section under a coarser cell (res 5–8) is at least 4× that cell's area, i.e. in the countryside, the whole coarse cell goes to the section covering most of it. Result: 338,241 cells instead of 1.4 million for a plain compacted res-9 index.
+5. **Shards:** cells are grouped by their res-3 ancestor into 78 files (`data/spain/<cell>.json`, 8.5 MB in total, the largest 600 KB). Each holds its sections as `[municipality, € per person, income percentile, residents]`, the municipalities they belong to, and `cell → section`. `index.json` has the metadata and the shard list. The content script fetches only the shard a listing or the visible map falls in.
+6. **Names:** INE writes "Palmas de Gran Canaria, Las"; the pipeline moves the article back ("Las Palmas de Gran Canaria").
+
+### Sanity check
+
+Full table in [`data/spain/summary.md`](data/spain/summary.md) (municipalities over 100,000 residents). Lowest street crime per 1,000 residents: Algeciras 10.3, San Cristóbal de La Laguna 11.1, Fuenlabrada 11.2, Oviedo 11.7. Highest: Barcelona 62.3, Palma 44.9, L'Hospitalet 39.0, València 36.8, Bilbao 36.3, Marbella 33.8. Madrid 28.8 (percentile 76). As in Barcelona, per-resident rates inflate tourist and central cities. On the Madrid map, Pozuelo comes out green and Puente de Vallecas red, with the centre in between.
+
 ## Idealista integration findings
 
 Inspected 2026-10-21 in a desktop-width browser (1440×900), on `/alquiler-viviendas/barcelona-barcelona/` and its map view. All selectors live in [`extension/src/selectors.ts`](extension/src/selectors.ts).
@@ -102,6 +131,12 @@ Inspected 2026-10-21 in a desktop-width browser (1440×900), on `/alquiler-vivie
 - `addressVisibility: HIDDEN` means the advertiser hid the exact address, so the point is approximate. Those badges are marked `≈`.
 - Fallback when a card has no map entry: take the barri from the title (`…, <barri>, Barcelona`), match it to the grid's barri names (accent- and case-insensitive, plus a small alias table), use the barri average and mark the badge `approx`.
 
+### Listing detail page (`/inmueble/<id>/`)
+- Inspected 2026-10-21 on `/inmueble/112873935/` (El Raval, address hidden).
+- **Coordinates:** the inline `var config = {…}` script has `multimediaCarrousel: {…, "map": {"src": "…staticmap?…&center=41.38202860%2C2.16966330&…&channel=map_detail…", "addressVisibility": "HIDDEN"}}`: the same static-map slide as on list cards, for the one listing. The value is JSON, so the same parser reads it. `latitude: ''` / `longitude: ''` also appear in the page but are empty.
+- Header: `section.detail-content-wrapper` holds `.main-info__title` (title, then `.main-info__title-minor` = `El Raval, Barcelona`) and then `div.info-data` (price, m², rooms). The panel goes right after that `div.info-data`. A second `.main-info` with its own `.info-data` is the sticky bar, which is not a child of the wrapper.
+- Fallback without coordinates: the barri from `.main-info__title-minor`, matched like card titles.
+
 ### Map view (`/alquiler-viviendas/barcelona-barcelona/mapa-google`)
 - Note that `/mapa` (without `-google`) is a different page: a static district-picker image ("greymaps"), not the listings map.
 - The listings map is **Google Maps JS API 3.65 ("quarterly")**. It is loaded by Idealista's React component through `@vis.gl/react-google-maps` (`solution_channel=GMP_visgl_rgmlibrary`, `callback=google.maps.__ib__`), uses raster rendering with a cloud `map_id`, and has 0 tilt and 0 heading. The container is `.google-map-container` inside `.multizone-map-container`.
@@ -109,6 +144,8 @@ Inspected 2026-10-21 in a desktop-width browser (1440×900), on `/alquiler-vivie
 - **Overlay:** a `google.maps.OverlayView` subclass draws one `<canvas>` in the `overlayLayer` pane, projecting hex vertices with `fromLatLngToDivPixel`. Google calls `draw()` on every pan and zoom, so the overlay stays in sync with no extra listeners. Verified live with a test dot on the old town.
 - When the viewport changes, the page fetches `/ajax/listingcontroller/listingmapajaxnopins.ajax?…&zoom=12&northEast=…&southWest=…`. That would be the fallback source of bounds if the prototype hook ever breaks. It is not implemented, because the hook works.
 - Content scripts run in an isolated world and cannot see `google.maps`, so the overlay runs as a second content script with `world: "MAIN"`. The isolated script sends it the hex polygons and values through `window.postMessage`. The data is public, so it's fine that the page can read these messages.
+- For the Spain-wide layer the map script also posts the viewport (`view`: bounds and zoom) on capture and on every `idle` event. The content script answers with hexes covering the view, sized to the zoom (res = zoom − 4, between 5 and 9, at most 3,000 hexes; none below zoom 8), and leaves out hexes Barcelona's grid already covers. Verified live on `/alquiler-viviendas/madrid-madrid/mapa-google`: the hook caught the instance and posted views at zoom 11, 6 and 7 while zooming.
+- The shards are listed in the manifest's `web_accessible_resources` for `https://www.idealista.com/*`, because a content script's `fetch` of its own extension files needs that.
 
 ### Other observations
 - Without consent, Idealista shows a Didomi consent banner. The extension does not touch it.
@@ -118,8 +155,11 @@ Inspected 2026-10-21 in a desktop-width browser (1440×900), on `/alquiler-vivie
 ## How the extension was tested
 
 The packaged extension cannot be installed in the in-app test browser, and that browser blocks public pages from loading `127.0.0.1` scripts. So the pieces were tested separately:
-- **Badges, fallback, filter, settings:** `extension/test/fixture.html` rebuilds Idealista's list markup, including an inline `config.listingMultimediaCarrousels` script, from 8 real listings captured on 2026-10-21, plus synthetic cases: no coordinates (→ barri `approx`), a point outside the city (→ no badge), an ad card, and a card inserted 1.5 s after load. The real content-script bundle runs there on a fake `chrome.storage`. All cases behaved as expected. Hide-red, crime-only re-weighting and all-categories-off were checked by changing settings live.
+- **Badges, fallback, filter, settings:** `extension/test/fixture.html` rebuilds Idealista's list markup, including an inline `config.listingMultimediaCarrousels` script, from 8 real listings captured on 2026-10-21, plus synthetic cases: no coordinates (→ barri `approx`), a point outside the city (L'Hospitalet → `Area` badge), an ad card, and a card inserted 1.5 s after load. Spain-wide cases: Madrid (`Area 38`), Seville with the address hidden (`Area 39 ≈`), Las Palmas (`Area 67`, which also checks the Canaries projection), Cadaqués (no crime figure: `Area 70` from income alone, no badge with income switched off) and a point at sea (no badge). The real content-script bundle runs there on a fake `chrome.storage`. All cases behaved as expected. Hide-red, crime-only re-weighting and all-categories-off were checked by changing settings live.
+- **Detail panel:** `extension/test/detail.html` rebuilds the detail header and its `config.multimediaCarrousel` script; `?case=` switches between the real Raval listing (address hidden), two exact points (Tres Torres, Sagrada Família), no coordinates (→ barri average from the location line) and a point outside the city (→ Spain-wide panel: safety and income rows; a copy moved to Cadaqués shows "No data" for safety). All behaved as expected, as did crime-only, all-layers-off and badges-off from the settings. The panel's selectors and the coordinate parse were checked on the live page; the bundle itself was not run there.
 - **Map overlay:** the built `page.js` was injected into the live `/mapa-google` page, together with 45 real hexes around Plaça Catalunya. It captured the map instance as soon as the map rendered, attached the overlay and legend, and stayed aligned through pan and zoom from 12 down to about 18 (La Rambla at street level).
+- **Spain-wide map layer:** `view` messages were posted to the fixture page and the overlay answer drawn on a canvas: about 500 hexes for Madrid at zoom 12–13, none at zoom 6, Barcelona's suburbs added around the city grid. The drawing code is unchanged from the live test above; the Spain-wide hexes were not drawn on the live map, because the test browser cannot load the shards into a public page.
+- The in-app test browser runs hidden, where `requestAnimationFrame` never fires, so cards added after load were not re-rendered there. The checks used a copy of the fixtures with `requestAnimationFrame` replaced by a 16 ms timer (`dist-test/*-raf.html`, not committed).
 - **Popup:** the built popup was rendered with the fake storage. Checkbox, slider, hide-red and reset all write the expected settings, and the date ranges, caveats and sources show up.
 
 ## Known limitations
@@ -134,3 +174,7 @@ The packaged extension cannot be installed in the in-app test browser, and that 
 - Extension: the map hook depends on `google.maps.Map.prototype.get` being called by the map instance. If Google changes that, the overlay silently doesn't appear (look for `[BCN-SQ]` in the console). Bounds from the page's `listingmapajaxnopins.ajax` requests are the documented fallback, but they are not implemented.
 - Extension: while dragging, the overlay canvas covers only the previous viewport until the map goes idle, so you can see a blank edge for a moment.
 - Extension: the tooltip names the hex's majority barri, which near a border can differ from the barri in Idealista's title.
+- Spain-wide layer: **crime is one figure per municipality** and exists only for municipalities over 20,000 residents; smaller places are scored on income alone. Income is a context indicator, not a measure of street quality.
+- Spain-wide layer: the countryside index assigns a coarse hex to the section covering most of it, so near borders between large rural sections a point can get the neighbouring section's income.
+- Spain-wide layer: cards without coordinates get no badge outside Barcelona (there is no title fallback).
+- Spain-wide layer: the newest crime year is read from the "Anteriores" list of the Interior portal; a 4th quarter that is still the current release appears there only once the next quarter is out.
