@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Fixture: Idealista list view</title>
+<style>
+  body { font: 14px/1.4 Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 16px; }
+  main { max-width: 760px; margin: auto; }
+  article.item { display: flex; background: #fff; margin: 0 0 12px; border-radius: 4px; overflow: hidden; }
+  article.adv { background: #fffbe6; padding: 12px; margin: 0 0 12px; }
+  .item-multimedia { width: 220px; min-height: 140px; background: #ccc; }
+  .item-info-container { padding: 10px 14px; flex: 1; }
+  a.item-link { display: block; color: #1a1a1a; font-size: 17px; text-decoration: none; }
+  .item-price { font-size: 20px; font-weight: bold; }
+  .item-detail { margin-right: 10px; color: #555; }
+</style>
+<!-- Real listings captured from idealista.com on 2026-10-21 (ids, titles,
+     static-map centres, address visibility), plus synthetic edge cases. -->
+<script>
+var config = {
+  locale: 'es',
+  userAuthenticated: false,
+  listingMultimediaCarrousels: {"112873197":{"width":480,"height":360,"multimedias":[{"type":"PICTURE","content":[{"id":1,"src":"a.jpg","description":"Salón \"luminoso\"","sources":null}]}],"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.37835990%2C2.18878660&maptype=roadmap&zoom=16&key=K&signature=S=","title":"Mapa de la zona","addressVisibility":"HIDDEN","width":720,"height":492}},"106103024":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.40623020%2C2.18017370&zoom=16","addressVisibility":"HIDDEN"}},"95925783":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.38603800%2C2.15360800&zoom=16","addressVisibility":"HIDDEN"}},"112421010":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.37835960%2C2.16344680&zoom=16","addressVisibility":"HIDDEN"}},"95329709":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.37539300%2C2.12384480&zoom=16","addressVisibility":"HIDDEN"}},"112873058":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.38432170%2C2.17453740&zoom=16","addressVisibility":"HIDDEN"}},"107952332":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.40734160%2C2.17822570&zoom=16","addressVisibility":"HIDDEN"}},"112782792":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.40037370%2C2.13597290&zoom=16","addressVisibility":"EXACT"}},"900000001":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?size=720x492&center=41.35970000%2C2.09970000&zoom=16","addressVisibility":"EXACT"}}},
+  favoriteFirstTime: true
+};
+</script>
+</head>
+<body>
+<main id="list"></main>
+<script>
+  const listings = [
+    ['112873197', 'Estudio en Plaza de la Barceloneta, La Barceloneta, Barcelona', '1.190', '28 m²'],
+    ['106103024', 'Piso en Calle de los Castillejos, La Sagrada Família, Barcelona', '1.836', '2 hab. · 74 m²'],
+    ['95925783', "Piso en Calle de Mallorca, L'Antiga Esquerra de l'Eixample, Barcelona", '1.317', '2 hab. · 65 m²'],
+    ['112421010', 'Estudio en Calle de Sant Antoni Abat, El Raval, Barcelona', '1.050', '30 m²'],
+    ['95329709', 'Piso en Calle de Sants, La Maternitat i Sant Ramon, Barcelona', '1.225', '3 hab. · 72 m²'],
+    ['112873058', 'Piso en Vila De Madrid, El Gòtic, Barcelona', '1.800', '3 hab. · 85 m²'],
+    ['107952332', 'Piso en Calle de Mallorca, La Sagrada Família, Barcelona', '1.493', '2 hab. · 90 m²'],
+    ['112782792', 'Piso en Ronda del General Mitre, Sant Gervasi - Galvany, Barcelona', '3.388', '4 hab. · 193 m²'],
+    // synthetic: no carousel entry → barri fallback ("approx")
+    ['900000002', 'Piso en Calle de Verdi, Vila de Gràcia, Barcelona', '1.400', '2 hab.'],
+    ['900000003', 'Ático en Calle Major, Sarrià, Barcelona', '2.100', '3 hab.'],
+    // synthetic: coordinates outside the city grid (L'Hospitalet) → no badge
+    ['900000001', "Piso en Rambla de la Marina, L'Hospitalet de Llobregat", '1.100', '2 hab.'],
+  ];
+  function card([id, title, price, details]) {
+    const a = document.createElement('article');
+    a.className = 'item extended-item item-multimedia-container';
+    a.dataset.elementId = id;
+    a.innerHTML = `<picture class="item-multimedia"></picture>
+      <div class="item-info-container">
+        <a href="/inmueble/${id}/" role="heading" aria-level="2" class="item-link" title="${title.replace(/"/g, '&quot;')}">${title}</a>
+        <div class="price-row"><span class="item-price h2-simulated">${price}<span class="txt-big">€/mes</span></span></div>
+        <div class="item-detail-char"><span class="item-detail">${details}</span></div>
+      </div>`;
+    return a;
+  }
+  const list = document.getElementById('list');
+  listings.forEach((l, i) => {
+    list.append(card(l));
+    if (i === 2) {
+      const ad = document.createElement('article');
+      ad.className = 'adv noHover';
+      ad.textContent = 'Publicidad';
+      list.append(ad);
+    }
+  });
+  // Re-render after load, like a filter change: two cards arrive later with
+  // their own config script.
+  setTimeout(() => {
+    const s = document.createElement('script');
+    s.textContent = 'var config2 = { listingMultimediaCarrousels: {"900000010":{"map":{"src":"https://maps.googleapis.com/maps/api/staticmap?center=41.41850000%2C2.16200000&zoom=16","addressVisibility":"EXACT"}}} };';
+    document.body.append(s);
+    list.append(card(['900000010', 'Piso en Avinguda Vallcarca, Vallcarca i els Penitents, Barcelona', '1.250', '2 hab.']));
+  }, 1500);
+</script>
+<script src="harness.js"></script>
+</body>
+</html>

@@ -40,3 +40,10 @@ next-env.d.ts
 /pipeline/out/
 /pipeline/*.exe
 /pipeline/bcngrid
+
+.idea/
+.claude
+
+# extension
+/extension/node_modules/
+/extension/dist-test/
