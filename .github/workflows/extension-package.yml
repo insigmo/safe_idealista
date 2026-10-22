@@ -1,10 +1,16 @@
 # Store uploads: builds the extension and packs one zip per store, since
 # Chrome and Firefox need different manifests (extension/build.mjs), plus the
 # source zip AMO asks for because the scripts are bundled and minified.
-# Every run keeps them as a workflow artifact; a v* tag also attaches them to
-# the GitHub release of that tag. Tag and release come from `npm run release`
-# in extension/ (release.mjs); the tag must match "version" in
-# extension/src/manifest.json.
+# Every run keeps them as a workflow artifact.
+#
+# A push to master cuts a patch release first: `npm run release` in
+# extension/ (release.mjs) bumps "version" in extension/src/manifest.json,
+# rebuilds dist/, commits, tags v<version>, pushes and creates the GitHub
+# release, and this run attaches the zips to it. A tag pushed with the
+# workflow token starts no other workflow, so the upload has to happen here;
+# for the same reason the bump commit does not trigger this workflow again.
+# A "release v*" commit was cut locally with `npm run release`: it is not
+# bumped again, and its own tag push runs this workflow to upload the zips.
 name: Extension package
 
 on:
@@ -20,12 +26,21 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: extension-package-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      BUMP: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && !startsWith(github.event.head_commit.message, 'release v') }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -39,12 +54,27 @@ jobs:
           v=$(node -p 'require("./extension/src/manifest.json").version')
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME, manifest version $v"; exit 1; }
 
-      - name: Build, lint and pack
+      - name: Install and typecheck
         working-directory: extension
         run: |
           npm ci
           npm run typecheck
-          npm run package
+
+      - name: Bump version and release
+        id: release
+        if: env.BUMP == 'true'
+        working-directory: extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'beta'
+          git config user.email 'qwantone@gmail.com'
+          npm run release
+          echo "tag=v$(node -p 'require("./src/manifest.json").version')" >> "$GITHUB_OUTPUT"
+
+      - name: Build, lint and pack
+        working-directory: extension
+        run: npm run package
 
       - name: Source zip for AMO
         run: |
@@ -57,16 +87,17 @@ jobs:
           path: extension/packages/*.zip
           if-no-files-found: error
 
-      # The release itself is created by extension/release.mjs under the
-      # maintainer's account right after the tag push; CI only uploads to it.
+      # On a tag push the release was created by extension/release.mjs under
+      # the maintainer's account right after the push; wait for it.
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || steps.release.outputs.tag
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag || github.ref_name }}
         run: |
           for i in $(seq 30); do
-            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break
-            [ "$i" = 30 ] && { echo "no release $GITHUB_REF_NAME; run npm run release locally"; exit 1; }
+            gh release view "$TAG" >/dev/null 2>&1 && break
+            [ "$i" = 30 ] && { echo "no release $TAG; run npm run release locally"; exit 1; }
             sleep 10
           done
-          gh release upload "$GITHUB_REF_NAME" extension/packages/*.zip --clobber
+          gh release upload "$TAG" extension/packages/*.zip --clobber

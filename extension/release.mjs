@@ -2,8 +2,9 @@
 // src/manifest.json, rebuilds dist/ and dist-firefox/ (both committed),
 // commits, tags v<version>, pushes master with the tag and creates the
 // GitHub release. The tag push makes .github/workflows/extension-package.yml
-// build the store zips and upload them to that release. Commit, tag and
-// release go out under the local git and gh accounts; CI only uploads files.
+// build the store zips and upload them to that release. Run locally, commit,
+// tag and release go out under the local git and gh accounts. CI also runs it
+// on every other push to master (patch bump, as github-actions[bot]).
 //
 //   npm run release [-- patch|minor|major|<x.y.z>] [-- --no-push]
 import { execSync } from 'node:child_process';
