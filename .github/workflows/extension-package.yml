@@ -1,0 +1,62 @@
+# Store uploads: builds the extension and packs one zip per store, since
+# Chrome and Firefox need different manifests (extension/build.mjs), plus the
+# source zip AMO asks for because the scripts are bundled and minified.
+# Every run keeps them as a workflow artifact; a v* tag also attaches them to
+# a GitHub release. The tag must match "version" in extension/src/manifest.json.
+name: Extension package
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+    paths:
+      - 'extension/**'
+      - 'data/**'
+      - '.github/workflows/extension-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Check tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(node -p 'require("./extension/src/manifest.json").version')
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME, manifest version $v"; exit 1; }
+
+      - name: Build, lint and pack
+        working-directory: extension
+        run: |
+          npm ci
+          npm run typecheck
+          npm run package
+
+      - name: Source zip for AMO
+        run: |
+          v=$(node -p 'require("./extension/src/manifest.json").version')
+          git archive --format zip -o "extension/packages/source-$v.zip" HEAD
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-packages
+          path: extension/packages/*.zip
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" extension/packages/*.zip --title "$GITHUB_REF_NAME" --generate-notes --verify-tag

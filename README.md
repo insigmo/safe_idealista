@@ -65,6 +65,14 @@ The same build writes `dist-firefox/`: the files of `dist/` with the manifest re
 
 `npm run package` builds, lints and writes the store uploads to `extension/packages/`: `chrome-<version>.zip` for the Chrome Web Store and `firefox-<version>.zip` for addons.mozilla.org. AMO also asks for the source, since the scripts are bundled and minified: upload `git archive --format zip -o source.zip HEAD` with the build steps above. Bump `version` in `src/manifest.json` before each upload.
 
+GitHub builds the same files (`.github/workflows/extension-package.yml`): every run keeps `chrome-<version>.zip`, `firefox-<version>.zip` and `source-<version>.zip` as the **extension-packages** artifact of the run. To cut a release, bump the version, commit, then tag and push it; the run attaches the three zips to a GitHub release:
+
+```bash
+git tag v0.4.1 && git push origin v0.4.1
+```
+
+Upload `chrome-*.zip` to the Chrome Web Store, and `firefox-*.zip` to AMO with `source-*.zip` as its source code.
+
 For development, `npm run build:harness` writes `dist-test/`:
 - `fixture.html` is a local copy of Idealista's list markup, built from real listings, with the content script running on a fake `chrome.storage`. It also has synthetic listings in Madrid (city grid), Pozuelo, Seville, Las Palmas, Cadaqués and at sea (Spain-wide layer).
 - `popup.html` previews the popup.
