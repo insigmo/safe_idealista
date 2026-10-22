@@ -1,4 +1,4 @@
-# Street Quality Spain — working notes
+# Safe Idealista — working notes
 
 Status: Part 1 (data pipeline) is reviewed. Part 2 (extension) is built and tested as described under "How the extension was tested". Installing the packaged extension in a real Chrome is still to do.
 

@@ -127,7 +127,7 @@ function updateLegend(map: google.maps.Map): void {
   const stops = Array.from({ length: 6 }, (_, i) => `hsl(${120 - i * 24},75%,45%)`).join(',');
   legend.innerHTML = '';
   const title = document.createElement('div');
-  title.textContent = `Street Quality · ${latest.title}`;
+  title.textContent = `Safe Idealista · ${latest.title}`;
   title.style.fontWeight = '600';
   const bar = document.createElement('div');
   bar.style.cssText = `height:8px;margin:4px 0 2px;border-radius:2px;background:linear-gradient(90deg,${stops})`;

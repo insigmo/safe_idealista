@@ -1,4 +1,4 @@
-// Command bcngrid builds the BCN Street Quality grid: per-H3-cell percentiles
+// Command bcngrid builds the Safe Idealista grid: per-H3-cell percentiles
 // for dirt, smell, graffiti, incivism (IRIS complaints) and crime (Mossos,
 // distributed within districts with Guàrdia Urbana incidents), normalised by
 // residents.

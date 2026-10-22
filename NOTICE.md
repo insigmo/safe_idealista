@@ -2,7 +2,7 @@
 
 ## Code
 
-The source code of Street Quality Spain is licensed under the
+The source code of Safe Idealista is licensed under the
 [GNU General Public License v3.0](LICENSE).
 
 ## Data
@@ -28,7 +28,7 @@ official figures.
 
 ## Disclaimer
 
-- Street Quality Spain is an independent project. It is not affiliated with,
+- Safe Idealista is an independent project. It is not affiliated with,
   endorsed by or connected to Idealista or any of the publishers above.
 - The scores are a statistical summary for general information. They may be
   incomplete, out of date or wrong, and they are not advice on renting,

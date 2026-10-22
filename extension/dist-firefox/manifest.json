@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Street Quality Spain",
+  "name": "Safe Idealista",
   "version": "0.4.1",
   "description": "Neighbourhood quality on Idealista listings across Spain: dirt, graffiti, crime and income, plus distance to your address.",
   "permissions": [
@@ -14,7 +14,7 @@
     ]
   },
   "action": {
-    "default_title": "Street Quality Spain",
+    "default_title": "Safe Idealista",
     "default_popup": "popup.html"
   },
   "content_scripts": [

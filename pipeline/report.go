@@ -162,7 +162,7 @@ const reviewMapHTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BCN Street Quality — review map</title>
+<title>Safe Idealista — review map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -180,7 +180,7 @@ const reviewMapHTML = `<!doctype html>
 <body>
 <div id="map"></div>
 <div class="panel">
-  <h1>BCN Street Quality — review</h1>
+  <h1>Safe Idealista — review</h1>
   <label>Layer
     <select id="layer">
       <option value="score">Score (100 = best)</option>

@@ -1,4 +1,4 @@
-# Street Quality Spain (formerly BCN Street Quality)
+# Safe Idealista (formerly Street Quality Spain, BCN Street Quality)
 
 A personal Chrome and Firefox extension that overlays neighbourhood-quality data on Idealista listings across Spain. Barcelona gets the detailed layers: dirt, smell, graffiti, incivism and crime. Madrid gets the same except smell, which the city does not publish. The rest of Spain gets street crime per municipality (Interior Ministry, municipalities over 20,000 residents) and household income per census section (INE). The data comes from official open data. A copy ships with the extension, and a monthly GitHub Actions run republishes it so installed extensions pick up fresh data without an update.
 
