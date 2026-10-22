@@ -39,17 +39,17 @@ jobs:
     env:
       PIPELINE: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pipeline) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: env.PIPELINE == 'true'
         with:
           go-version-file: pipeline/go.mod
           cache-dependency-path: pipeline/go.sum
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Run pipeline
         if: env.PIPELINE == 'true'
