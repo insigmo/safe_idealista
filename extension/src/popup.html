@@ -6,63 +6,115 @@
 <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-<header>
-  <h1>Street Quality Spain</h1>
-  <p class="sub">Neighbourhood data on Idealista: Barcelona and Madrid street by street, the rest of Spain by municipality and census section</p>
+<header class="top">
+  <button type="button" id="back" class="icon" hidden data-i18n-label="back">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+  </button>
+  <div class="brand">
+    <h1>Street Quality Spain</h1>
+    <p class="sub" data-i18n="tagline"></p>
+  </div>
+  <label class="power" data-i18n-title="power">
+    <input type="checkbox" id="on" role="switch" data-i18n-label="power">
+    <span class="track"><span class="thumb"></span></span>
+    <span id="onText" class="power-text"></span>
+  </label>
+  <button type="button" id="openSettings" class="icon" data-i18n-label="settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
 </header>
 
-<section>
-  <label class="switch"><input type="checkbox" id="badges"> Badges and listing-page panel</label>
-  <label class="switch"><input type="checkbox" id="overlay"> Map overlay</label>
-  <div class="hide-row">
-    <label class="switch"><input type="checkbox" id="hideRed"> Hide listings scoring below</label>
-    <input type="number" id="hideBelow" min="0" max="100" step="1" aria-label="Minimum score to show">
+<main id="mainView">
+  <p id="paused" class="paused" data-i18n="paused" hidden></p>
+
+  <div class="trust">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+    <span data-i18n="official"></span>
+    <button type="button" id="openSources" class="link" data-i18n="sources"></button>
   </div>
-  <label class="switch"><input type="checkbox" id="hideLowPop"> Hide hexes with &lt;100 residents</label>
-  <label class="range">Overlay opacity <input type="range" id="opacity" min="0.05" max="1" step="0.05"><output id="opacityOut"></output></label>
-</section>
 
-<section>
-  <h2>My address</h2>
-  <form id="homeForm" class="home-form">
-    <input type="text" id="homeInput" placeholder="Carrer de Mallorca 401, Barcelona" autocomplete="street-address" aria-label="Address">
-    <button type="submit" id="homeSet">Set</button>
-  </form>
-  <p id="homeStatus" class="small" role="status"></p>
-  <button type="button" id="homeClear" hidden>Clear address</button>
-  <p class="small">Shows the straight-line distance on each listing and adds “Nearest to my address” to Idealista's “Ordenar” menu. It reorders the listings on the page you are on (Idealista shows 30 per page). The address is looked up once with OpenStreetMap Nominatim; type coordinates (“41.39, 2.17”) to skip that.</p>
-</section>
+  <section class="card">
+    <h2 data-i18n="address"></h2>
+    <form id="homeForm" class="home-form">
+      <input type="text" id="homeInput" placeholder="Carrer de Mallorca 401, Barcelona" autocomplete="street-address" data-i18n-label="address">
+      <button type="submit" id="homeSet" class="primary" data-i18n="set"></button>
+    </form>
+    <div class="home-found" id="homeFound" hidden>
+      <p id="homeStatus" class="small" role="status"></p>
+      <button type="button" id="homeClear" class="link" data-i18n="clear"></button>
+    </div>
+    <p id="homeError" class="small error" role="alert" hidden></p>
+    <p class="small" data-i18n="addressHint"></p>
+  </section>
 
-<section>
-  <h2>Layers and weights</h2>
-  <div id="cats"></div>
-  <button type="button" id="reset">Reset to defaults</button>
-</section>
+  <section class="card">
+    <h2 data-i18n="score"></h2>
+    <div class="ramp" aria-hidden="true"></div>
+    <div class="legend">
+      <span><b>0–39</b> <span data-i18n="bad"></span></span>
+      <span><b>40–59</b> <span data-i18n="mid"></span></span>
+      <span><b>60–100</b> <span data-i18n="good"></span></span>
+    </div>
+    <p class="small" data-i18n="legendHint"></p>
+  </section>
+</main>
 
-<section>
-  <h2>Legend</h2>
-  <div class="legend">
-    <span class="pill good">60–100 good</span>
-    <span class="pill mid">40–59 average</span>
-    <span class="pill bad">0–39 poor</span>
+<main id="settingsView" hidden>
+  <section class="card">
+    <h2 data-i18n="language"></h2>
+    <select id="lang" data-i18n-label="language"></select>
+  </section>
+
+  <section class="card">
+    <h2 data-i18n="display"></h2>
+    <label class="row"><span data-i18n="badges"></span><input type="checkbox" id="badges" role="switch"></label>
+    <label class="row"><span data-i18n="overlay"></span><input type="checkbox" id="overlay" role="switch"></label>
+    <label class="row"><span data-i18n="hideLowPop"></span><input type="checkbox" id="hideLowPop" role="switch"></label>
+    <div class="row">
+      <label for="hideRed" data-i18n="hideRed"></label>
+      <span class="inline">
+        <input type="number" id="hideBelow" min="0" max="100" step="1" data-i18n-label="hideRed">
+        <input type="checkbox" id="hideRed" role="switch">
+      </span>
+    </div>
+    <label class="slider"><span data-i18n="opacity"></span><input type="range" id="opacity" min="0.05" max="1" step="0.05"><output id="opacityOut"></output></label>
+  </section>
+
+  <section class="card">
+    <h2 data-i18n="layers"></h2>
+    <div id="cats"></div>
+    <p class="small" data-i18n="layersNote"></p>
+    <button type="button" id="reset" data-i18n="reset"></button>
+  </section>
+
+  <section class="card">
+    <h2 data-i18n="data"></h2>
+    <dl id="ranges"></dl>
+    <p class="small" id="dataStatus"></p>
+    <button type="button" id="dataCheck" data-i18n="check"></button>
+    <details>
+      <summary data-i18n="caveats"></summary>
+      <ul id="caveats"></ul>
+    </details>
+    <p class="small" data-i18n="privacy"></p>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="disclaimer"></span>
+  <a href="https://github.com/insigmo/safe_idealista/blob/master/NOTICE.md" target="_blank" rel="noopener"><span data-i18n="license"></span>: GPL-3.0</a>
+</footer>
+
+<dialog id="sourcesDialog">
+  <div class="dialog-head">
+    <h2 data-i18n="sources"></h2>
+    <button type="button" id="closeSources" class="icon" data-i18n-label="close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
   </div>
-  <div class="ramp" aria-hidden="true"></div>
-  <p class="small">Score = 100 − weighted mean of the percentiles of the enabled layers that exist at the place: city-wide in Barcelona and in Madrid ("Street" badges), Spain-wide elsewhere ("Area" badges). The scales are not comparable with each other. Map hexes use the same score. "≈" = advertiser hid the address; "approx" = barri average.</p>
-</section>
-
-<section>
-  <h2>Data</h2>
-  <dl id="ranges"></dl>
-  <p class="small" id="dataStatus"></p>
-  <button type="button" id="dataCheck">Check for updates</button>
-  <h2>Caveats</h2>
-  <ul id="caveats"></ul>
-  <details>
-    <summary>Sources</summary>
-    <ul id="sources"></ul>
-  </details>
-  <p class="small">No analytics. Network requests: the address lookup, when you press Set, and a daily check for a newer data release on GitHub (published monthly).</p>
-</section>
+  <p class="small" data-i18n="sourcesIntro"></p>
+  <ul id="sources" class="sources"></ul>
+</dialog>
 <script src="popup.js"></script>
 </body>
 </html>

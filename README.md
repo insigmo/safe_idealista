@@ -80,3 +80,7 @@ For development, `npm run build:harness` writes `dist-test/`:
 Serve the folder with `python -m http.server 8766 --directory extension/dist-test` and call `window.__bcnsqSet({hideRed: true})` in the fixture's console to change settings.
 
 The extension only reads what Idealista already rendered and the data shipped inside it. It makes two kinds of network request: the address lookup (OpenStreetMap Nominatim, Spain only), sent from the popup when you press Set (typed coordinates skip it), and the daily data-release check against raw.githubusercontent.com, which sends nothing about you. It stores your settings, address included (`chrome.storage.sync`), and downloaded data (`chrome.storage.local`), and has no analytics. Idealista-specific selectors are all in `extension/src/selectors.ts`. If something breaks, look for `[BCN-SQ]` in the page console.
+
+## Licence
+
+Code: GPL v3 ([LICENSE](LICENSE)). The data comes from public open-data portals and keeps their terms; the sources, attributions and the no-warranty disclaimer are in [NOTICE.md](NOTICE.md).

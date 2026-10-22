@@ -10,7 +10,7 @@ import { LOG, TAG, type OverlayMsg, type ViewMsg } from './protocol';
 import { ADDRESS_HIDDEN, barriFromTitle, CAROUSELS_KEY, DETAIL_CAROUSEL_KEY, SEL, STATIC_MAP_CENTER } from './selectors';
 import { inMadridGrid, madridAt, madridMeta, madridPolygons, viewTouchesMadrid, type MadridHit } from './madrid';
 import { distanceKm, formatDistance } from './home';
-import { CATEGORIES, CATEGORY_LABELS, loadSettings, onSettingsChanged, type Category, type Settings } from './settings';
+import { CATEGORIES, CATEGORY_LABELS, effective, loadSettings, onSettingsChanged, type Category, type Settings } from './settings';
 import { cellsInView, placeAt, spainMeta, type Place } from './spain';
 
 interface Located {
@@ -609,7 +609,8 @@ function sendOverlay(): void {
 // ---- wiring -----------------------------------------------------------------
 
 async function main(): Promise<void> {
-  [settings] = await Promise.all([loadSettings(), loadGrid()]);
+  const [stored] = await Promise.all([loadSettings(), loadGrid()]);
+  settings = effective(stored);
   renderAll();
   sendOverlay();
   let pending = false;
@@ -622,7 +623,7 @@ async function main(): Promise<void> {
     });
   }).observe(document.body, { childList: true, subtree: true });
   onSettingsChanged((s) => {
-    settings = s;
+    settings = effective(s);
     safe('render', renderAll)();
     safe('overlay', sendOverlay)();
   });

@@ -22,7 +22,7 @@ export interface Meta {
   date_ranges: Record<string, { from: string; to: string }>;
   caveats: string[];
   method: string[];
-  sources: { portal: string; dataset: string; title: string; resource: string }[];
+  sources: { portal: string; dataset: string; title: string; resource: string; url: string }[];
 }
 
 interface GridFile { meta: Meta; cells: Record<string, Cell>; barris: Record<string, Barri> }

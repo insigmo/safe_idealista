@@ -12,6 +12,9 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   income: 'Low income',
 };
 
+export const LANGS = ['en', 'es', 'ru', 'pt', 'it'] as const;
+export type Lang = (typeof LANGS)[number];
+
 // The user's address, set in the popup: distance on each card and the
 // "nearest first" sort option on Idealista's list pages.
 export interface Home {
@@ -22,6 +25,8 @@ export interface Home {
 }
 
 export interface Settings {
+  on: boolean; // master switch: off leaves Idealista pages untouched
+  lang: Lang | null; // popup language; null = the browser's
   badges: boolean;
   overlay: boolean;
   opacity: number; // 0..1
@@ -34,6 +39,8 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
+  on: true,
+  lang: null,
   badges: true,
   overlay: true,
   opacity: 0.45,
@@ -46,6 +53,12 @@ export const DEFAULTS: Settings = {
 };
 
 const KEY = 'settings';
+
+// What the content script acts on: with the master switch off, nothing is
+// drawn, hidden or reordered. The stored settings stay as they are.
+export function effective(s: Settings): Settings {
+  return s.on ? s : { ...s, badges: false, overlay: false, hideRed: false, home: null };
+}
 
 function merge(stored: Partial<Settings> | undefined): Settings {
   return {
