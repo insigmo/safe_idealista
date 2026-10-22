@@ -1,9 +1,9 @@
 // Cuts a release from the local checkout: bumps "version" in
 // src/manifest.json, rebuilds dist/ and dist-firefox/ (both committed),
-// commits, tags v<version> and pushes master with the tag. The tag push is
-// what makes .github/workflows/extension-package.yml attach the store zips
-// to a GitHub release. Commit and tag go out under the local git identity;
-// CI never writes to the repository.
+// commits, tags v<version>, pushes master with the tag and creates the
+// GitHub release. The tag push makes .github/workflows/extension-package.yml
+// build the store zips and upload them to that release. Commit, tag and
+// release go out under the local git and gh accounts; CI only uploads files.
 //
 //   npm run release [-- patch|minor|major|<x.y.z>] [-- --no-push]
 import { execSync } from 'node:child_process';
@@ -38,5 +38,8 @@ run('npm run build');
 run('git add src/manifest.json dist dist-firefox');
 run(`git commit -m "release ${tag}"`);
 run(`git tag -a ${tag} -m "${tag}"`);
-if (push) run(`git push --atomic origin master ${tag}`);
+if (push) {
+  run(`git push --atomic origin master ${tag}`);
+  run(`gh release create ${tag} --title ${tag} --generate-notes --verify-tag`);
+}
 console.log(`${current} -> ${next}${push ? ', pushed' : ', not pushed (git push --atomic origin master ' + tag + ')'}`);

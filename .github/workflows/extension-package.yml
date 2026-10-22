@@ -2,7 +2,9 @@
 # Chrome and Firefox need different manifests (extension/build.mjs), plus the
 # source zip AMO asks for because the scripts are bundled and minified.
 # Every run keeps them as a workflow artifact; a v* tag also attaches them to
-# a GitHub release. The tag must match "version" in extension/src/manifest.json.
+# the GitHub release of that tag. Tag and release come from `npm run release`
+# in extension/ (release.mjs); the tag must match "version" in
+# extension/src/manifest.json.
 name: Extension package
 
 on:
@@ -55,8 +57,16 @@ jobs:
           path: extension/packages/*.zip
           if-no-files-found: error
 
+      # The release itself is created by extension/release.mjs under the
+      # maintainer's account right after the tag push; CI only uploads to it.
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" extension/packages/*.zip --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: |
+          for i in $(seq 30); do
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break
+            [ "$i" = 30 ] && { echo "no release $GITHUB_REF_NAME; run npm run release locally"; exit 1; }
+            sleep 10
+          done
+          gh release upload "$GITHUB_REF_NAME" extension/packages/*.zip --clobber
