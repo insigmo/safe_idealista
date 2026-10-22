@@ -1,20 +1,27 @@
-# Monthly data refresh: runs the pipeline against fresh downloads, checks the
-# output is plausible, and force-pushes the packed data files (see
-# extension/pack.mjs) as the single commit of the data-release branch. The
-# extension's background worker reads release.json from that branch and
-# downloads whatever changed (extension/src/background.ts).
+# Data release: checks the data is plausible and force-pushes the packed data
+# files (see extension/pack.mjs) as the single commit of the data-release
+# branch. The extension's background worker reads release.json from that
+# branch and downloads whatever changed (extension/src/background.ts).
+#
+# The monthly run regenerates data/ from fresh downloads first. A push that
+# changes data/ publishes the committed data as is: some source portals
+# refuse GitHub's cloud IPs (Barcelona's answers 403), so data built locally
+# with `make data` and committed must be publishable without the pipeline.
 name: Data release
 
 on:
   schedule:
     - cron: '0 4 3 * *' # 04:00 UTC on the 3rd of each month
   workflow_dispatch:
-  # Also whenever what produces or packs the data changes, so a pipeline fix
-  # reaches users without waiting for the next month.
+    inputs:
+      pipeline:
+        description: Regenerate data/ from fresh downloads (off = publish the committed data)
+        type: boolean
+        default: true
   push:
     branches: [master]
     paths:
-      - 'pipeline/**'
+      - 'data/**'
       - 'extension/pack.mjs'
       - '.github/workflows/data-release.yml'
 
@@ -29,10 +36,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      PIPELINE: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pipeline) }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
+        if: env.PIPELINE == 'true'
         with:
           go-version-file: pipeline/go.mod
           cache-dependency-path: pipeline/go.sum
@@ -42,6 +52,7 @@ jobs:
           node-version: 22
 
       - name: Run pipeline
+        if: env.PIPELINE == 'true'
         working-directory: pipeline
         run: make data
 
