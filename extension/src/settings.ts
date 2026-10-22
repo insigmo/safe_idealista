@@ -12,14 +12,25 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   income: 'Low income',
 };
 
+// The user's address, set in the popup: distance on each card and the
+// "nearest first" sort option on Idealista's list pages.
+export interface Home {
+  address: string; // as typed
+  label: string; // as found by the geocoder
+  lat: number;
+  lng: number;
+}
+
 export interface Settings {
   badges: boolean;
   overlay: boolean;
   opacity: number; // 0..1
-  hideRed: boolean;
+  hideRed: boolean; // hide listing cards scoring below hideBelow
+  hideBelow: number; // 0..100
   hideLowPop: boolean; // overlay: skip cells with <100 residents
   enabled: Record<Category, boolean>;
   weights: Record<Category, number>; // 0..100, relative
+  home: Home | null;
 }
 
 export const DEFAULTS: Settings = {
@@ -27,9 +38,11 @@ export const DEFAULTS: Settings = {
   overlay: true,
   opacity: 0.45,
   hideRed: false,
+  hideBelow: 40,
   hideLowPop: true,
   enabled: { dirt: true, smell: true, graffiti: true, incivism: true, crime: true, income: true },
   weights: { crime: 35, smell: 20, dirt: 20, graffiti: 15, incivism: 10, income: 15 },
+  home: null,
 };
 
 const KEY = 'settings';

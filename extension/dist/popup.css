@@ -36,6 +36,17 @@ label { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .range { justify-content: space-between; }
 .range input { flex: 1; }
 output { min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+.hide-row { display: flex; align-items: center; gap: 6px; }
+.hide-row input[type='number'] {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+.hide-row input[type='number']:disabled { opacity: 0.35; }
 .cat { display: grid; grid-template-columns: 96px 1fr 30px; align-items: center; gap: 6px; margin: 4px 0; }
 .cat label { margin: 0; }
 .cat input[type='range']:disabled { opacity: 0.35; }
@@ -50,6 +61,20 @@ button {
   cursor: pointer;
 }
 button:hover { border-color: var(--accent); }
+.home-form { display: flex; gap: 6px; }
+.home-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+.home-form button { margin-top: 0; }
+#homeStatus:empty { display: none; }
+#homeStatus.error { color: var(--bad); }
 .legend { display: flex; gap: 6px; flex-wrap: wrap; }
 .pill { padding: 1px 8px; border-radius: 10px; color: #fff; font-weight: 600; font-size: 12px; }
 .pill.good { background: var(--good); }

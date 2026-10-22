@@ -3,18 +3,15 @@
 // scripts on a live page with a fake chrome.storage (see test/harness.ts).
 import { build } from 'esbuild';
 import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { packData } from './pack.mjs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const dist = join(root, 'dist');
-const gridPath = join(root, '..', 'data', 'grid.json');
-// Spain-wide shards (index.json + <res-3 cell>.json), read on demand by the
-// content script as web-accessible resources.
-const spainDir = join(root, '..', 'data', 'spain');
-// Madrid's grid, also read on demand (only near Madrid); its meta is split
-// out for the popup.
-const madridGrid = join(root, '..', 'data', 'madrid', 'grid.json');
+// The pipeline's output, packed as the bundled data release (pack.mjs): read
+// on demand as web-accessible resources unless a newer download exists.
+const dataDir = join(root, '..', 'data');
 
 const common = {
   bundle: true,
@@ -30,7 +27,7 @@ mkdirSync(dist, { recursive: true });
 
 await build({
   ...common,
-  entryPoints: { content: 'src/content.ts', page: 'src/page.ts', popup: 'src/popup.ts' },
+  entryPoints: { background: 'src/background.ts', content: 'src/content.ts', page: 'src/page.ts', popup: 'src/popup.ts' },
   outdir: dist,
   absWorkingDir: root,
 });
@@ -38,12 +35,7 @@ await build({
 for (const f of ['manifest.json', 'popup.html', 'popup.css', 'content.css']) {
   copyFileSync(join(root, 'src', f), join(dist, f));
 }
-const grid = JSON.parse(readFileSync(gridPath, 'utf8'));
-writeFileSync(join(dist, 'meta.json'), JSON.stringify(grid.meta));
-cpSync(spainDir, join(dist, 'spain'), { recursive: true, filter: (src) => !src.endsWith('.md') });
-mkdirSync(join(dist, 'madrid'));
-copyFileSync(madridGrid, join(dist, 'madrid', 'grid.json'));
-writeFileSync(join(dist, 'madrid', 'meta.json'), JSON.stringify(JSON.parse(readFileSync(madridGrid, 'utf8')).meta));
+packData(dataDir, dist);
 
 if (process.argv.includes('--harness')) {
   await build({
@@ -57,9 +49,8 @@ if (process.argv.includes('--harness')) {
   for (const f of ['fixture.html', 'detail.html']) copyFileSync(join(root, 'test', f), join(root, 'dist-test', f));
   // Popup preview: the real popup files plus the fake chrome.storage.
   await build({ ...common, minify: false, entryPoints: { shim: 'test/shim.ts' }, outdir: join(root, 'dist-test'), absWorkingDir: root });
-  for (const f of ['popup.js', 'popup.css', 'meta.json']) copyFileSync(join(dist, f), join(root, 'dist-test', f));
-  cpSync(join(dist, 'spain'), join(root, 'dist-test', 'spain'), { recursive: true });
-  cpSync(join(dist, 'madrid'), join(root, 'dist-test', 'madrid'), { recursive: true });
+  for (const f of ['popup.js', 'popup.css', 'release.json']) copyFileSync(join(dist, f), join(root, 'dist-test', f));
+  for (const d of ['bcn', 'spain', 'madrid']) cpSync(join(dist, d), join(root, 'dist-test', d), { recursive: true });
   const popupHtml = readFileSync(join(dist, 'popup.html'), 'utf8').replace('<script src="popup.js">', '<script src="shim.js"></script><script src="popup.js">');
   writeFileSync(join(root, 'dist-test', 'popup.html'), popupHtml);
 }

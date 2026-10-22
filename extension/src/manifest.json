@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Street Quality Spain",
-  "version": "0.2.0",
-  "description": "Neighbourhood data on Idealista listings and maps: Barcelona and Madrid in detail (dirt, graffiti, incivism, crime; smell in Barcelona), the rest of Spain by municipal crime and local income. Bundled data, no network requests.",
-  "permissions": ["storage"],
+  "version": "0.4.0",
+  "description": "Neighbourhood data on Idealista listings and maps: Barcelona and Madrid in detail (dirt, graffiti, incivism, crime; smell in Barcelona), the rest of Spain by municipal crime and local income. Distance to your address and a nearest-first sort. Data ships with the extension and is refreshed from a monthly release on GitHub; the other network request is the address lookup.",
+  "permissions": ["storage", "unlimitedStorage", "alarms"],
+  "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "Street Quality Spain",
     "default_popup": "popup.html"
@@ -24,7 +25,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["spain/*.json", "madrid/*.json"],
+      "resources": ["release.json", "bcn/*.json", "spain/*.json", "madrid/*.json"],
       "matches": ["https://www.idealista.com/*"]
     }
   ]

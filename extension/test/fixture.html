@@ -30,6 +30,26 @@ var config3 = { listingMultimediaCarrousels: {"900000020":{"map":{"src":"https:/
 </script>
 </head>
 <body>
+<!-- "Ordenar:" control as captured on 2026-10-21 (dropdown trimmed to four options). -->
+<div id="order-by" class="order-by " data-param="ordenado-por" tabindex="0" role="group">
+<span class="order-by-label">Ordenar:</span>
+<ul id="view-type-toolbar-buttons" class="view-type-toolbar-buttons segmented-btn-group clearfix">
+<li><span data-value="" class="btn regular smaller selected" tabindex="0">Relevancia</span></li>
+<li><a href="?ordenado-por=precios-asc" data-value="precios-asc" class="btn regular smaller" tabindex="0">Baratos</a></li>
+<li><a href="?ordenado-por=fecha-publicacion-desc" data-value="fecha-publicacion-desc" class="btn regular smaller" tabindex="0">Recientes</a></li>
+<li class="dropdown-menu">
+<span class="btn regular smaller icon-arrow-dropdown-after drop-button selected" tabindex="0">
+Relevancia
+</span>
+<ul>
+<li><span data-value="" class="selected" tabindex="0">Relevancia</span></li>
+<li><a href="?ordenado-por=precios-asc" data-value="precios-asc" class="" tabindex="0">Baratos</a></li>
+<li><a href="?ordenado-por=precios-desc" data-value="precios-desc" class="" tabindex="0">Precio más alto</a></li>
+<li><a href="?ordenado-por=fecha-publicacion-desc" data-value="fecha-publicacion-desc" class="" tabindex="0">Recientes</a></li>
+</ul>
+</li>
+</ul>
+</div>
 <main id="list"></main>
 <script>
   const listings = [

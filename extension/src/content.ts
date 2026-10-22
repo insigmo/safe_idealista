@@ -1,13 +1,15 @@
 // Isolated-world content script: badges on listing cards, the "hide red"
-// filter, the per-layer panel on a listing's detail page, and feeding hex
+// filter, the distance to the user's address and the "nearest first" sort on
+// list pages, the per-layer panel on a listing's detail page, and feeding hex
 // polygons to the main-world map script (page.ts). Barcelona and Madrid use
 // their own detailed grids; everywhere else the Spain-wide layer (spain.ts).
 // It only reads what the page already rendered and the data bundled with the
 // extension; it makes no network requests.
-import { barriByName, barriOf, cellAt, cellPolygons, grid, level, ramp, score, type Barri, type Cell, type Level, type Values } from './grid';
+import { barriByName, barriOf, cellAt, cellPolygons, grid, level, loadGrid, ramp, score, type Barri, type Cell, type Level, type Values } from './grid';
 import { LOG, TAG, type OverlayMsg, type ViewMsg } from './protocol';
 import { ADDRESS_HIDDEN, barriFromTitle, CAROUSELS_KEY, DETAIL_CAROUSEL_KEY, SEL, STATIC_MAP_CENTER } from './selectors';
 import { inMadridGrid, madridAt, madridMeta, madridPolygons, viewTouchesMadrid, type MadridHit } from './madrid';
+import { distanceKm, formatDistance } from './home';
 import { CATEGORIES, CATEGORY_LABELS, loadSettings, onSettingsChanged, type Category, type Settings } from './settings';
 import { cellsInView, placeAt, spainMeta, type Place } from './spain';
 
@@ -93,10 +95,14 @@ function locateBy(c: Coords | undefined, title: string): Located | null | Promis
   return b ? { values: b, barri: b, approx: 'barri' } : null;
 }
 
-function locate(card: HTMLElement): Located | null | Promise<Located | null> {
+function cardCoords(card: HTMLElement): Coords | undefined {
   const id = card.getAttribute(SEL.cardIdAttr) ?? '';
   if (!coords.has(id)) parseCarousels();
-  return locateBy(coords.get(id), card.querySelector<HTMLAnchorElement>(SEL.cardTitle)?.title ?? '');
+  return coords.get(id);
+}
+
+function locate(card: HTMLElement): Located | null | Promise<Located | null> {
+  return locateBy(cardCoords(card), card.querySelector<HTMLAnchorElement>(SEL.cardTitle)?.title ?? '');
 }
 
 function locateDetail(): Located | null | Promise<Located | null> {
@@ -275,7 +281,144 @@ function renderCard(card: HTMLElement): void {
   // Only touch the DOM on change: our own writes would re-trigger the observer.
   if (badge.textContent !== text) badge.textContent = text;
   badge.setAttribute('aria-label', `${kind} quality score ${s} of 100${mark ? ', approximate' : ''}`);
-  card.classList.toggle('bcnsq-hidden', settings.hideRed && lv === 'bad');
+  card.classList.toggle('bcnsq-hidden', settings.hideRed && s < settings.hideBelow);
+}
+
+// ---- distance to the user's address, "nearest first" sort -------------------
+
+// Idealista sorts on the server and has no distance order, so this one sorts
+// the cards already on the page. It is per tab and survives pagination;
+// picking any of Idealista's own orders switches it off.
+const SORT_KEY = 'bcnsq-sort';
+const SORT_LABEL = 'Nearest to my address';
+
+function sortByDistance(): boolean {
+  if (!settings.home) return false;
+  try {
+    return sessionStorage.getItem(SORT_KEY) === 'distance';
+  } catch {
+    return false;
+  }
+}
+
+function setSortByDistance(on: boolean): void {
+  try {
+    if (on) sessionStorage.setItem(SORT_KEY, 'distance');
+    else sessionStorage.removeItem(SORT_KEY);
+  } catch {
+    // storage blocked: the sort just does not persist
+  }
+}
+
+function renderDistance(card: HTMLElement): void {
+  let chip = card.querySelector<HTMLElement>(':scope .bcnsq-dist');
+  const home = settings.home;
+  const c = home ? cardCoords(card) : undefined;
+  if (!home || !c) {
+    chip?.remove();
+    return;
+  }
+  if (!chip) {
+    const title = card.querySelector(SEL.cardTitle);
+    if (!title?.parentElement) return;
+    chip = el('span', 'bcnsq-dist');
+    (card.querySelector(':scope .bcnsq-badge') ?? title).insertAdjacentElement('afterend', chip);
+  }
+  const text = `${c.hidden ? '≈ ' : ''}${formatDistance(distanceKm(home, c))}`;
+  const hint = `Straight-line distance from ${home.label}${c.hidden ? ' (the advertiser hid the exact address)' : ''}`;
+  // Only touch the DOM on change: our own writes would re-trigger the observer.
+  if (chip.textContent !== text) chip.textContent = text;
+  if (chip.title !== hint) chip.title = hint;
+}
+
+// Order in which cards were first seen, to undo the sort.
+const firstSeen = new WeakMap<HTMLElement, number>();
+let seenCount = 0;
+
+// Reorders the cards inside their list; ads and other blocks keep their slots.
+// Cards without coordinates go last.
+function sortCards(): void {
+  const home = sortByDistance() ? settings.home : null;
+  const lists = new Map<Element, HTMLElement[]>();
+  for (const card of Array.from(document.querySelectorAll<HTMLElement>(SEL.card))) {
+    if (!firstSeen.has(card)) firstSeen.set(card, seenCount++);
+    const list = card.parentElement;
+    if (!list) continue;
+    if (!lists.has(list)) lists.set(list, []);
+    lists.get(list)!.push(card);
+  }
+  for (const cards of lists.values()) {
+    const keyed = cards.map((card) => {
+      const c = home ? cardCoords(card) : undefined;
+      return { card, d: !home ? 0 : c ? distanceKm(home, c) : Infinity, i: firstSeen.get(card)! };
+    });
+    keyed.sort((a, b) => (a.d === b.d ? a.i - b.i : a.d - b.d));
+    if (keyed.every((k, i) => k.card === cards[i])) continue;
+    const slots = cards.map((card) => {
+      const mark = document.createComment('');
+      card.before(mark);
+      return mark;
+    });
+    keyed.forEach((k, i) => slots[i].replaceWith(k.card));
+  }
+}
+
+// Adds the option to Idealista's "Ordenar" dropdown and mirrors the selected
+// state (the drop button shows the active order).
+function renderSortOption(): void {
+  const root = document.querySelector<HTMLElement>(SEL.orderBy);
+  const menu = document.querySelector(SEL.orderByDropdown);
+  if (!root || !menu) return;
+  if (!root.dataset.bcnsq) {
+    root.dataset.bcnsq = '1';
+    // Any of Idealista's own options ends ours. Relevancia is a plain span
+    // that does not reload the page, so re-render to restore the order.
+    root.addEventListener('click', (e) => {
+      if (!(e.target as Element).closest(SEL.orderByOption) || !sortByDistance()) return;
+      setSortByDistance(false);
+      queueMicrotask(safe('render', renderAll));
+    }, true);
+  }
+  let item = menu.querySelector<HTMLElement>(':scope > li.bcnsq-sort');
+  if (!settings.home) {
+    item?.remove();
+  } else if (!item) {
+    item = el('li', 'bcnsq-sort');
+    const opt = el('span', 'bcnsq-sort-opt', SORT_LABEL);
+    opt.tabIndex = 0;
+    opt.setAttribute('role', 'button');
+    const choose = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setSortByDistance(true);
+      (document.activeElement as HTMLElement | null)?.blur();
+      safe('render', renderAll)();
+    };
+    opt.addEventListener('click', choose);
+    opt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') choose(e);
+    });
+    item.append(opt);
+    menu.prepend(item);
+  }
+  const on = sortByDistance();
+  const opt = item?.firstElementChild;
+  if (opt && opt.classList.contains('selected') !== on) opt.classList.toggle('selected', on);
+  for (const e of Array.from(root.querySelectorAll<HTMLElement>(`${SEL.orderByOption}.selected, [data-bcnsq-selected]`))) {
+    if (on && e.classList.contains('selected')) {
+      e.dataset.bcnsqSelected = '1';
+      e.classList.remove('selected');
+    } else if (!on && e.dataset.bcnsqSelected) {
+      delete e.dataset.bcnsqSelected;
+      e.classList.add('selected');
+    }
+  }
+  const drop = root.querySelector<HTMLElement>(SEL.orderByDropButton);
+  if (drop) {
+    drop.dataset.bcnsqText ??= drop.textContent?.trim() ?? '';
+    const text = on ? SORT_LABEL : drop.dataset.bcnsqText;
+    if (drop.textContent?.trim() !== text) drop.textContent = text;
+  }
 }
 
 // ---- detail page panel --------------------------------------------------------
@@ -409,6 +552,9 @@ function renderDetail(): void {
 
 function renderAll(): void {
   document.querySelectorAll<HTMLElement>(SEL.card).forEach(safe('badge', renderCard));
+  document.querySelectorAll<HTMLElement>(SEL.card).forEach(safe('distance', renderDistance));
+  safe('sort option', renderSortOption)();
+  safe('sort', sortCards)();
   safe('panel', renderDetail)();
 }
 
@@ -441,7 +587,7 @@ async function refreshViewCells(): Promise<void> {
 
 function sendOverlay(): void {
   const cells = [];
-  for (const { cell, ring } of cellPolygons) {
+  for (const { cell, ring } of cellPolygons()) {
     if (settings.hideLowPop && cell.lp) continue;
     const s = score(cell, settings);
     if (s === null) continue;
@@ -463,7 +609,7 @@ function sendOverlay(): void {
 // ---- wiring -----------------------------------------------------------------
 
 async function main(): Promise<void> {
-  settings = await loadSettings();
+  [settings] = await Promise.all([loadSettings(), loadGrid()]);
   renderAll();
   sendOverlay();
   let pending = false;

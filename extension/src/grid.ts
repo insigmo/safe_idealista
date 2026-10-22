@@ -1,5 +1,5 @@
 import { cellToBoundary, latLngToCell } from 'h3-js';
-import gridJson from '../../data/grid.json';
+import { readData } from './data';
 import type { Category, Settings } from './settings';
 import { CATEGORIES } from './settings';
 
@@ -27,7 +27,16 @@ export interface Meta {
 
 interface GridFile { meta: Meta; cells: Record<string, Cell>; barris: Record<string, Barri> }
 
-export const grid = gridJson as unknown as GridFile;
+// Set by loadGrid(), which the content script awaits before anything else.
+export let grid: GridFile;
+
+export async function loadGrid(): Promise<void> {
+  const g = await readData<GridFile>('bcn/grid.json');
+  if (!g) throw new Error('Barcelona grid missing');
+  grid = g;
+  barriWords = Object.values(g.barris).map((b) => ({ b, w: words(b.name) }));
+  polygons = null;
+}
 
 // Percentiles (0 best … 100 worst) of the layers that exist at a location.
 export type Values = Partial<Record<Category, number>>;
@@ -77,7 +86,7 @@ function words(s: string): Set<string> {
   return new Set(folded.split(/[^a-z0-9]+/).filter((w) => w && !STOP.has(w)));
 }
 
-const barriWords = Object.values(grid.barris).map((b) => ({ b, w: words(b.name) }));
+let barriWords: { b: Barri; w: Set<string> }[] = [];
 
 export function barriByName(name: string): Barri | null {
   const q = words(name);
@@ -96,7 +105,10 @@ export function barriByName(name: string): Barri | null {
   return bestScore >= 0.6 ? best : null;
 }
 
-// Hex polygons for the map overlay, flattened [lat, lng, lat, lng, …].
-export const cellPolygons: { id: string; cell: Cell; ring: number[] }[] = Object.entries(grid.cells).map(
-  ([id, cell]) => ({ id, cell, ring: cellToBoundary(id).flat() }),
-);
+let polygons: { id: string; cell: Cell; ring: number[] }[] | null = null;
+
+// Hex polygons for the map overlay, flattened [lat, lng, lat, lng, …]; built once.
+export function cellPolygons(): { id: string; cell: Cell; ring: number[] }[] {
+  polygons ??= Object.entries(grid.cells).map(([id, cell]) => ({ id, cell, ring: cellToBoundary(id).flat() }));
+  return polygons;
+}

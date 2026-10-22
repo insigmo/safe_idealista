@@ -14,6 +14,21 @@
 
 article.bcnsq-hidden { display: none !important; }
 
+/* Distance to the user's address, after the badge */
+.bcnsq-dist {
+  display: inline-block;
+  margin: 4px 0 6px 6px;
+  padding: 1px 8px;
+  border: 1px solid #767676;
+  border-radius: 10px;
+  background: #fff;
+  color: #333;
+  font: 600 12px/1.5 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+.bcnsq-sort-opt { cursor: pointer; }
+
 .bcnsq-tip {
   display: none;
   position: fixed;

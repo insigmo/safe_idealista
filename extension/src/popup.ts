@@ -1,4 +1,6 @@
+import { dataStatus, readData, REFRESH_MSG } from './data';
 import type { Meta } from './grid';
+import { geocode } from './home';
 import { CATEGORIES, CATEGORY_LABELS, DEFAULTS, loadSettings, saveSettings, type Settings } from './settings';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -13,6 +15,9 @@ function renderControls(): void {
   for (const key of ['badges', 'overlay', 'hideRed', 'hideLowPop'] as const) {
     $<HTMLInputElement>(key).checked = settings[key];
   }
+  const below = $<HTMLInputElement>('hideBelow');
+  below.value = String(settings.hideBelow);
+  below.disabled = !settings.hideRed;
   $<HTMLInputElement>('opacity').value = String(settings.opacity);
   $<HTMLOutputElement>('opacityOut').value = `${Math.round(settings.opacity * 100)}%`;
 
@@ -48,6 +53,41 @@ function renderControls(): void {
     '* Crime: in Barcelona, per district split over barris by estimate; in Madrid, city-police incidents per barrio; elsewhere, one figure per municipality, published only above 20,000 residents.',
   ]) {
     cats.append(Object.assign(document.createElement('p'), { className: 'small', textContent: text }));
+  }
+}
+
+function renderHome(): void {
+  const status = $('homeStatus');
+  status.classList.remove('error');
+  status.textContent = settings.home ? `Found: ${settings.home.label}` : '';
+  $<HTMLInputElement>('homeInput').value = settings.home?.address ?? '';
+  $('homeClear').hidden = !settings.home;
+}
+
+async function setHome(e: SubmitEvent): Promise<void> {
+  e.preventDefault();
+  const query = $<HTMLInputElement>('homeInput').value.trim();
+  const status = $('homeStatus');
+  if (!query) return;
+  const button = $<HTMLButtonElement>('homeSet');
+  button.disabled = true;
+  status.classList.remove('error');
+  status.textContent = 'Looking up…';
+  try {
+    const home = await geocode(query);
+    if (!home) {
+      status.classList.add('error');
+      status.textContent = 'Address not found in Spain. Try adding the city, or type coordinates.';
+      return;
+    }
+    settings.home = home;
+    save();
+    renderHome();
+  } catch (err) {
+    status.classList.add('error');
+    status.textContent = `Lookup failed (${err instanceof Error ? err.message : String(err)}). Type coordinates instead.`;
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -88,29 +128,61 @@ function renderMeta(meta: Meta, madrid: Meta | null, spain: Meta | null): void {
 async function main(): Promise<void> {
   settings = await loadSettings();
   renderControls();
+  renderHome();
+  $<HTMLFormElement>('homeForm').addEventListener('submit', (e) => void setHome(e));
+  $('homeClear').addEventListener('click', () => {
+    settings.home = null;
+    save();
+    renderHome();
+  });
   for (const key of ['badges', 'overlay', 'hideRed', 'hideLowPop'] as const) {
     $<HTMLInputElement>(key).addEventListener('change', (e) => {
       settings[key] = (e.target as HTMLInputElement).checked;
+      if (key === 'hideRed') $<HTMLInputElement>('hideBelow').disabled = !settings.hideRed;
       save();
     });
   }
+  $<HTMLInputElement>('hideBelow').addEventListener('input', (e) => {
+    const v = (e.target as HTMLInputElement).valueAsNumber;
+    if (Number.isNaN(v)) return;
+    settings.hideBelow = Math.max(0, Math.min(100, Math.round(v)));
+    save();
+  });
   $<HTMLInputElement>('opacity').addEventListener('input', (e) => {
     settings.opacity = Number((e.target as HTMLInputElement).value);
     $<HTMLOutputElement>('opacityOut').value = `${Math.round(settings.opacity * 100)}%`;
     save();
   });
   $('reset').addEventListener('click', () => {
-    settings = structuredClone(DEFAULTS);
+    // The address is not a display setting: keep it.
+    settings = { ...structuredClone(DEFAULTS), home: settings.home };
     renderControls();
     save();
   });
-  const meta = (await (await fetch('meta.json')).json()) as Meta;
-  const json = <T>(path: string): Promise<T | null> =>
-    fetch(path)
-      .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
-      .catch(() => null);
-  const [madrid, spain] = await Promise.all([json<Meta>('madrid/meta.json'), json<{ meta: Meta }>('spain/index.json')]);
-  renderMeta(meta, madrid, spain?.meta ?? null);
+  $('dataCheck').addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
+    $('dataStatus').textContent = 'Checking…';
+    const reply = (await chrome.runtime.sendMessage({ type: REFRESH_MSG }).catch(() => 'failed')) as string;
+    btn.disabled = false;
+    // A new release applies to pages loaded from now on, and to this popup when reopened.
+    $('dataStatus').textContent = reply.startsWith('updated') ? `${reply}. Reload Idealista pages to use it.` : `Release check: ${reply}.`;
+  });
+  void renderStatus();
+  const [meta, madrid, spain] = await Promise.all([
+    readData<Meta>('bcn/meta.json'),
+    readData<Meta>('madrid/meta.json'),
+    readData<{ meta: Meta }>('spain/index.json'),
+  ]);
+  if (meta) renderMeta(meta, madrid, spain?.meta ?? null);
+}
+
+async function renderStatus(): Promise<void> {
+  const s = await dataStatus();
+  const day = (t: number): string => new Date(t).toISOString().slice(0, 10);
+  const parts = [`Data release ${s.version?.slice(0, 10) ?? '?'}, ${s.downloaded ? 'downloaded' : 'bundled'}`];
+  if (s.checked !== null) parts.push(`last checked ${day(s.checked)}`);
+  $('dataStatus').textContent = `${parts.join('; ')}.`;
 }
 
 void main();

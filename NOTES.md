@@ -189,6 +189,10 @@ Inspected 2026-10-21 in a desktop-width browser (1440×900), on `/alquiler-vivie
 - For the Spain-wide layer the map script also posts the viewport (`view`: bounds and zoom) on capture and on every `idle` event. The content script answers with hexes covering the view, sized to the zoom (res = zoom − 4, between 5 and 9, at most 3,000 hexes; none below zoom 8), and leaves out hexes Barcelona's grid already covers. Verified live on `/alquiler-viviendas/madrid-madrid/mapa-google`: the hook caught the instance and posted views at zoom 11, 6 and 7 while zooming.
 - The shards are listed in the manifest's `web_accessible_resources` for `https://www.idealista.com/*`, because a content script's `fetch` of its own extension files needs that.
 
+### Sort control ("Ordenar")
+- Inspected 2026-10-21 on the list view. `div#order-by[data-param="ordenado-por"]` holds segmented buttons (Relevancia, Baratos, Recientes) and `li.dropdown-menu` with a `.drop-button` (shows the active order) and a `ul` of every order. Each option has `data-value`: the active one is a `span.selected`, the others are links to `?ordenado-por=<value>` (`precios-asc`, `precios-desc`, `fecha-publicacion-desc/asc`, `rebajas-desc`, `precio-metro-cuadrado-asc/desc`, `planta-desc/asc`). Sorting is server-side; there is no distance order.
+- The extension prepends "Nearest to my address" to the dropdown `ul` (not the segmented buttons, which have room for three). Its option has no `data-value` and stops the click, so Idealista's handlers never see it: verified on the live page (no navigation, same font as its siblings). Cards are reordered within `section.items-list`; ads and the pagination block keep their slots. The choice is kept in the tab's `sessionStorage` and cleared by a click on any `[data-value]` option.
+
 ### Other observations
 - Without consent, Idealista shows a Didomi consent banner. The extension does not touch it.
 - No script CSP is set (only `frame-ancestors`), which doesn't affect a content script.
@@ -204,6 +208,7 @@ The packaged extension cannot be installed in the in-app test browser, and that 
 - **Spain-wide map layer:** `view` messages were posted to the fixture page and the overlay answer drawn on a canvas: about 500 hexes for Madrid at zoom 12–13 (before the Madrid grid existed), none at zoom 6, Barcelona's suburbs added around the city grid. The drawing code is unchanged from the live test above; the Spain-wide hexes were not drawn on the live map, because the test browser cannot load the shards into a public page.
 - The in-app test browser runs hidden, where `requestAnimationFrame` never fires, so cards added after load were not re-rendered there. The checks used a copy of the fixtures with `requestAnimationFrame` replaced by a 16 ms timer (`dist-test/*-raf.html`, not committed).
 - **Popup:** the built popup was rendered with the fake storage. Checkbox, slider, hide-red and reset all write the expected settings, and the date ranges, caveats and sources show up.
+- **Address and distance sort:** the fixture now carries the captured `#order-by` markup. With an address at Plaça Catalunya, every card with coordinates showed its distance (`≈ 500 m` for El Gòtic, `2173 km` for Las Palmas); "Nearest to my address" reordered the cards nearest first with the ad in its slot and the two cards without coordinates last, set the drop button's label, and clicking "Relevancia" restored the original order and selection. In the popup preview, `Carrer de Mallorca 401, Barcelona` was looked up through Nominatim (41.4032, 2.1748) and stored. Not checked in an installed extension: the lookup from the real popup (Nominatim allows any origin, so it should behave the same) and the sort on live Idealista pages.
 
 ## Known limitations
 

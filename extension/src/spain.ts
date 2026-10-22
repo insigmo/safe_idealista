@@ -1,8 +1,10 @@
 // Spain-wide layer, used outside Barcelona's grid: street crime per
 // municipality and household income per census section. The data ships with
 // the extension as shards (dist/spain/<res-3 H3 cell>.json, see
-// pipeline/spain.go) that are read on demand; nothing leaves the browser.
+// pipeline/spain.go) that are read on demand, a newer downloaded copy
+// winning (data.ts); nothing leaves the browser.
 import { cellToBoundary, cellToLatLng, cellToParent, latLngToCell, polygonToCells } from 'h3-js';
+import { readData } from './data';
 import type { Meta, Values } from './grid';
 
 export interface Muni {
@@ -36,14 +38,7 @@ export interface Place {
   values: Values;
 }
 
-async function load<T>(path: string): Promise<T | null> {
-  try {
-    const r = await fetch(chrome.runtime.getURL(path));
-    return r.ok ? ((await r.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
+const load = readData;
 
 let index: Promise<{ ix: Index; keys: Set<string> } | null> | null = null;
 let loadedMeta: Meta | null = null;

@@ -2,8 +2,9 @@
 // citizen reports, incivism and crime per barrio from city-police incidents.
 // Madrid publishes nothing on smell, so there is no smell layer. The file
 // ships with the extension (dist/madrid/grid.json) and is read on demand,
-// only for points near Madrid.
+// only for points near Madrid; a newer downloaded copy wins (data.ts).
 import { cellToBoundary, latLngToCell } from 'h3-js';
+import { readData } from './data';
 import type { Meta } from './grid';
 
 export interface MadridCell {
@@ -37,10 +38,7 @@ let file: Promise<GridFile | null> | null = null;
 let loaded: GridFile | null = null;
 
 function load(): Promise<GridFile | null> {
-  file ??= fetch(chrome.runtime.getURL('madrid/grid.json'))
-    .then((r) => (r.ok ? (r.json() as Promise<GridFile>) : null))
-    .catch(() => null)
-    .then((g) => (loaded = g));
+  file ??= readData<GridFile>('madrid/grid.json').then((g) => (loaded = g));
   return file;
 }
 

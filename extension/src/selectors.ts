@@ -9,6 +9,14 @@ export const SEL = {
   // Where the badge goes: right after the title link inside the info block.
   cardInfo: '.item-info-container',
   cardTitle: 'a.item-link',
+  // "Ordenar:" control above the list. Idealista sorts on the server
+  // (?ordenado-por=…); every option of its own carries data-value. The
+  // segmented buttons and the dropdown are two renderings of the same list.
+  orderBy: '#order-by',
+  orderBySegmented: '#order-by > ul',
+  orderByDropdown: '#order-by li.dropdown-menu > ul',
+  orderByDropButton: '#order-by .drop-button',
+  orderByOption: '[data-value]',
   // Google Maps container on the map view (/mapa-google).
   mapContainer: '.google-map-container',
   // Listing detail page (/inmueble/<id>/): the panel goes after the price row.
