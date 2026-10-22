@@ -9,6 +9,14 @@ on:
   schedule:
     - cron: '0 4 3 * *' # 04:00 UTC on the 3rd of each month
   workflow_dispatch:
+  # Also whenever what produces or packs the data changes, so a pipeline fix
+  # reaches users without waiting for the next month.
+  push:
+    branches: [master]
+    paths:
+      - 'pipeline/**'
+      - 'extension/pack.mjs'
+      - '.github/workflows/data-release.yml'
 
 permissions:
   contents: write

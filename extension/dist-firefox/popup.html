@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Street Quality Spain</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <h1>Street Quality Spain</h1>
+  <p class="sub">Neighbourhood data on Idealista: Barcelona and Madrid street by street, the rest of Spain by municipality and census section</p>
+</header>
+
+<section>
+  <label class="switch"><input type="checkbox" id="badges"> Badges and listing-page panel</label>
+  <label class="switch"><input type="checkbox" id="overlay"> Map overlay</label>
+  <div class="hide-row">
+    <label class="switch"><input type="checkbox" id="hideRed"> Hide listings scoring below</label>
+    <input type="number" id="hideBelow" min="0" max="100" step="1" aria-label="Minimum score to show">
+  </div>
+  <label class="switch"><input type="checkbox" id="hideLowPop"> Hide hexes with &lt;100 residents</label>
+  <label class="range">Overlay opacity <input type="range" id="opacity" min="0.05" max="1" step="0.05"><output id="opacityOut"></output></label>
+</section>
+
+<section>
+  <h2>My address</h2>
+  <form id="homeForm" class="home-form">
+    <input type="text" id="homeInput" placeholder="Carrer de Mallorca 401, Barcelona" autocomplete="street-address" aria-label="Address">
+    <button type="submit" id="homeSet">Set</button>
+  </form>
+  <p id="homeStatus" class="small" role="status"></p>
+  <button type="button" id="homeClear" hidden>Clear address</button>
+  <p class="small">Shows the straight-line distance on each listing and adds “Nearest to my address” to Idealista's “Ordenar” menu. It reorders the listings on the page you are on (Idealista shows 30 per page). The address is looked up once with OpenStreetMap Nominatim; type coordinates (“41.39, 2.17”) to skip that.</p>
+</section>
+
+<section>
+  <h2>Layers and weights</h2>
+  <div id="cats"></div>
+  <button type="button" id="reset">Reset to defaults</button>
+</section>
+
+<section>
+  <h2>Legend</h2>
+  <div class="legend">
+    <span class="pill good">60–100 good</span>
+    <span class="pill mid">40–59 average</span>
+    <span class="pill bad">0–39 poor</span>
+  </div>
+  <div class="ramp" aria-hidden="true"></div>
+  <p class="small">Score = 100 − weighted mean of the percentiles of the enabled layers that exist at the place: city-wide in Barcelona and in Madrid ("Street" badges), Spain-wide elsewhere ("Area" badges). The scales are not comparable with each other. Map hexes use the same score. "≈" = advertiser hid the address; "approx" = barri average.</p>
+</section>
+
+<section>
+  <h2>Data</h2>
+  <dl id="ranges"></dl>
+  <p class="small" id="dataStatus"></p>
+  <button type="button" id="dataCheck">Check for updates</button>
+  <h2>Caveats</h2>
+  <ul id="caveats"></ul>
+  <details>
+    <summary>Sources</summary>
+    <ul id="sources"></ul>
+  </details>
+  <p class="small">No analytics. Network requests: the address lookup, when you press Set, and a daily check for a newer data release on GitHub (published monthly).</p>
+</section>
+<script src="popup.js"></script>
+</body>
+</html>

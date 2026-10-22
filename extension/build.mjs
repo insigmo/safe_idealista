@@ -16,7 +16,7 @@ const dataDir = join(root, '..', 'data');
 const common = {
   bundle: true,
   format: 'iife',
-  target: 'chrome120',
+  target: ['chrome120', 'firefox140'],
   minify: true,
   legalComments: 'none',
   logLevel: 'warning',
@@ -37,6 +37,26 @@ for (const f of ['manifest.json', 'popup.html', 'popup.css', 'content.css']) {
 }
 packData(dataDir, dist);
 
+// Firefox: the same files with its own manifest. Firefox runs MV3 background
+// code as an event page (background.scripts, no service_worker), needs a
+// fixed add-on id for storage.sync and AMO, and wants the data that leaves
+// the browser declared: the home address goes to Nominatim (src/home.ts).
+// 140 is the first version that reads data_collection_permissions.
+const distFirefox = join(root, 'dist-firefox');
+rmSync(distFirefox, { recursive: true, force: true });
+cpSync(dist, distFirefox, { recursive: true });
+const manifest = JSON.parse(readFileSync(join(dist, 'manifest.json'), 'utf8'));
+manifest.background = { scripts: ['background.js'] };
+manifest.browser_specific_settings = {
+  gecko: {
+    id: 'street-quality-spain@insigmo.github.io',
+    strict_min_version: '140.0',
+    data_collection_permissions: { required: ['locationInfo'] },
+  },
+  gecko_android: { strict_min_version: '142.0' },
+};
+writeFileSync(join(distFirefox, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
 if (process.argv.includes('--harness')) {
   await build({
     ...common,
@@ -54,4 +74,4 @@ if (process.argv.includes('--harness')) {
   const popupHtml = readFileSync(join(dist, 'popup.html'), 'utf8').replace('<script src="popup.js">', '<script src="shim.js"></script><script src="popup.js">');
   writeFileSync(join(root, 'dist-test', 'popup.html'), popupHtml);
 }
-console.log('built', dist);
+console.log('built', dist, 'and', distFirefox);

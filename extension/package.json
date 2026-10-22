@@ -6,13 +6,16 @@
   "scripts": {
     "build": "node build.mjs",
     "build:harness": "node build.mjs --harness",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:firefox": "web-ext lint -s dist-firefox",
+    "package": "node build.mjs && web-ext lint -s dist-firefox && web-ext build -o -s dist -a packages -n chrome-{version}.zip && web-ext build -o -s dist-firefox -a packages -n firefox-{version}.zip"
   },
   "devDependencies": {
     "@types/chrome": "0.3.6",
     "@types/google.maps": "3.66.7",
     "esbuild": "0.28.2",
     "h3-js": "4.5.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "web-ext": "10.8.0"
   }
 }

@@ -1,6 +1,6 @@
 # Street Quality Spain (formerly BCN Street Quality)
 
-A personal Chrome extension that overlays neighbourhood-quality data on Idealista listings across Spain. Barcelona gets the detailed layers: dirt, smell, graffiti, incivism and crime. Madrid gets the same except smell, which the city does not publish. The rest of Spain gets street crime per municipality (Interior Ministry, municipalities over 20,000 residents) and household income per census section (INE). The data comes from official open data. A copy ships with the extension, and a monthly GitHub Actions run republishes it so installed extensions pick up fresh data without an update.
+A personal Chrome and Firefox extension that overlays neighbourhood-quality data on Idealista listings across Spain. Barcelona gets the detailed layers: dirt, smell, graffiti, incivism and crime. Madrid gets the same except smell, which the city does not publish. The rest of Spain gets street crime per municipality (Interior Ministry, municipalities over 20,000 residents) and household income per census section (INE). The data comes from official open data. A copy ships with the extension, and a monthly GitHub Actions run republishes it so installed extensions pick up fresh data without an update.
 
 - `pipeline/` — Go program that downloads the open data and builds `data/grid.json` (Barcelona: H3 res-9 cells + barri averages), `data/madrid/grid.json` (the same for Madrid) and `data/spain/` (the Spain-wide layer as H3 shards).
 - `data/` — generated output: `grid.json`, the category mapping report, barri rankings, a Leaflet review map, `madrid/` (grid, mapping report, barrio rankings) and `spain/` (shards, `index.json`, `summary.md` with the municipal crime ranking).
@@ -41,10 +41,10 @@ Then open http://localhost:8765/review_map.html.
 
 ## Load the extension
 
-A built copy is committed in `extension/dist/`.
+Built copies are committed in `extension/dist/` (Chrome) and `extension/dist-firefox/` (Firefox 140+, desktop; Android 142+).
 
-1. Open `chrome://extensions` and switch on **Developer mode**.
-2. Click **Load unpacked** and pick `extension/dist`.
+1. Chrome: open `chrome://extensions`, switch on **Developer mode**, click **Load unpacked** and pick `extension/dist`.
+2. Firefox: open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…** and pick `extension/dist-firefox/manifest.json`. A temporary add-on is removed when Firefox closes; a permanent install needs the AMO-signed build (see below).
 3. Open any Idealista search, e.g. https://www.idealista.com/alquiler-viviendas/barcelona-barcelona/ or https://www.idealista.com/alquiler-viviendas/madrid-madrid/. Each listing gets a badge (hover it for the breakdown). Opening a listing (`/inmueble/<id>/`) shows a panel under the price with the overall score, a verdict (good / average / poor) and a level for each layer (in Barcelona dirt, graffiti, safety, smell and incivism; in Madrid the same without smell; elsewhere safety and income), from the same data as the map. The map view (**Mapa** → `/mapa-google`) gets a hex overlay with a legend in the bottom-left corner.
 4. The toolbar icon opens the popup: your address, layer toggles, weights, opacity, "hide red listings", legend, data date ranges, caveats and sources.
 5. With an address set (e.g. `Carrer de Mallorca 401, Barcelona`, or coordinates like `41.39, 2.17`), every listing shows its straight-line distance from it, and Idealista's **Ordenar** dropdown gets **Nearest to my address**. Idealista sorts on its server and has no such order, so the extension reorders the 30 listings of the page you are on (ads keep their place, listings without coordinates go last). The choice lasts for the tab, page 2 onwards included, until you pick one of Idealista's own orders.
@@ -60,6 +60,10 @@ cd extension && npm ci && npm run build
 ```
 
 The build packs `data/` into `dist/` with `extension/pack.mjs`: `bcn/` and `madrid/` (grid + meta), `spain/` (index + shards) and `release.json`, which lists every file with its SHA-256. They are read on demand as web-accessible resources, so rebuild the extension after `make data`. `npm run typecheck` runs TypeScript.
+
+The same build writes `dist-firefox/`: the files of `dist/` with the manifest rewritten for Firefox (an event-page `background.scripts`, the add-on id, and `data_collection_permissions` declaring the address sent to Nominatim). `npm run lint:firefox` runs Mozilla's `web-ext lint` over it.
+
+`npm run package` builds, lints and writes the store uploads to `extension/packages/`: `chrome-<version>.zip` for the Chrome Web Store and `firefox-<version>.zip` for addons.mozilla.org. AMO also asks for the source, since the scripts are bundled and minified: upload `git archive --format zip -o source.zip HEAD` with the build steps above. Bump `version` in `src/manifest.json` before each upload.
 
 For development, `npm run build:harness` writes `dist-test/`:
 - `fixture.html` is a local copy of Idealista's list markup, built from real listings, with the content script running on a fake `chrome.storage`. It also has synthetic listings in Madrid (city grid), Pozuelo, Seville, Las Palmas, Cadaqués and at sea (Spain-wide layer).

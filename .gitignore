@@ -47,3 +47,4 @@ next-env.d.ts
 # extension
 /extension/node_modules/
 /extension/dist-test/
+/extension/packages/
