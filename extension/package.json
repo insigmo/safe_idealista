@@ -7,7 +7,8 @@
     "build": "node build.mjs",
     "build:harness": "node build.mjs --harness",
     "typecheck": "tsc --noEmit",
-    "lint:firefox": "web-ext lint -s dist-firefox",
+    "release": "node release.mjs",
+    "lint:firefox":"web-ext lint -s dist-firefox",
     "package": "node build.mjs && web-ext lint -s dist-firefox && web-ext build -o -s dist -a packages -n chrome-{version}.zip && web-ext build -o -s dist-firefox -a packages -n firefox-{version}.zip"
   },
   "devDependencies": {
