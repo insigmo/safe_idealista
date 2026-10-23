@@ -133,7 +133,7 @@ function updateLegend(map: google.maps.Map): void {
   bar.style.cssText = `height:8px;margin:4px 0 2px;border-radius:2px;background:linear-gradient(90deg,${stops})`;
   const ends = document.createElement('div');
   ends.style.cssText = 'display:flex;justify-content:space-between;color:#555';
-  ends.innerHTML = '<span>better</span><span>worse</span>';
+  ends.append(...[latest.better, latest.worse].map((w) => Object.assign(document.createElement('span'), { textContent: w })));
   legend.append(title, bar, ends);
 }
 

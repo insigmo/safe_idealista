@@ -35,6 +35,7 @@ await build({
 for (const f of ['manifest.json', 'popup.html', 'popup.css', 'content.css']) {
   copyFileSync(join(root, 'src', f), join(dist, f));
 }
+cpSync(join(root, 'src', 'icons'), join(dist, 'icons'), { recursive: true });
 packData(dataDir, dist);
 
 // Firefox: the same files with its own manifest. Firefox runs MV3 background
@@ -70,7 +71,7 @@ if (process.argv.includes('--harness')) {
   // Popup preview: the real popup files plus the fake chrome.storage.
   await build({ ...common, minify: false, entryPoints: { shim: 'test/shim.ts' }, outdir: join(root, 'dist-test'), absWorkingDir: root });
   for (const f of ['popup.js', 'popup.css', 'release.json']) copyFileSync(join(dist, f), join(root, 'dist-test', f));
-  for (const d of ['bcn', 'spain', 'madrid']) cpSync(join(dist, d), join(root, 'dist-test', d), { recursive: true });
+  for (const d of ['bcn', 'spain', 'madrid', 'icons']) cpSync(join(dist, d), join(root, 'dist-test', d), { recursive: true });
   const popupHtml = readFileSync(join(dist, 'popup.html'), 'utf8').replace('<script src="popup.js">', '<script src="shim.js"></script><script src="popup.js">');
   writeFileSync(join(root, 'dist-test', 'popup.html'), popupHtml);
 }

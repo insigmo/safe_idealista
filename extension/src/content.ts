@@ -5,12 +5,13 @@
 // their own detailed grids; everywhere else the Spain-wide layer (spain.ts).
 // It only reads what the page already rendered and the data bundled with the
 // extension; it makes no network requests.
-import { barriByName, barriOf, cellAt, cellPolygons, grid, level, loadGrid, ramp, score, type Barri, type Cell, type Level, type Values } from './grid';
+import { barriByName, barriOf, cellAt, cellPolygons, grid, level, loadGrid, ramp, score, type Barri, type Cell, type Values } from './grid';
 import { LOG, TAG, type OverlayMsg, type ViewMsg } from './protocol';
 import { ADDRESS_HIDDEN, barriFromTitle, CAROUSELS_KEY, DETAIL_CAROUSEL_KEY, SEL, STATIC_MAP_CENTER } from './selectors';
 import { inMadridGrid, madridAt, madridMeta, madridPolygons, viewTouchesMadrid, type MadridHit } from './madrid';
 import { distanceKm, formatDistance } from './home';
-import { CATEGORIES, CATEGORY_LABELS, effective, loadSettings, onSettingsChanged, type Category, type Settings } from './settings';
+import { pickLang, strings, type Strings } from './i18n';
+import { CATEGORIES, effective, loadSettings, onSettingsChanged, type Category, type Lang, type Settings } from './settings';
 import { cellsInView, placeAt, spainMeta, type Place } from './spain';
 
 interface Located {
@@ -28,6 +29,18 @@ const MADRID_CATEGORIES: Category[] = ['dirt', 'graffiti', 'incivism', 'crime'];
 const SPAIN_CATEGORIES: Category[] = ['crime', 'income'];
 
 let settings: Settings;
+// On-page text follows the language picked in the popup.
+let lang: Lang;
+let t: Strings;
+let p: Strings['page'];
+const num = (n: number): string => n.toLocaleString(lang);
+
+function applySettings(s: Settings): void {
+  settings = effective(s);
+  lang = pickLang(s.lang);
+  t = strings(lang);
+  p = t.page;
+}
 const coords = new Map<string, { lat: number; lng: number; hidden: boolean }>();
 let parsedScripts = new WeakSet<HTMLScriptElement>();
 
@@ -129,21 +142,19 @@ function spainNotes(place: Place): string[] {
   const { muni, income } = place;
   const notes = [
     muni.c1k !== undefined
-      ? `Crime*: ${muni.c1k} street crimes per 1,000 residents in ${r?.crime.from.slice(0, 4) ?? 'the last full year'}, for all of ${muni.n}.`
-      : `No crime figure: the Interior Ministry publishes it only for municipalities over 20,000 residents (${muni.n}: ${muni.pop.toLocaleString('en')}).`,
+      ? p.spainCrime(num(muni.c1k), r?.crime.from.slice(0, 4) ?? '?', muni.n)
+      : p.spainNoCrime(muni.n, num(muni.pop)),
   ];
-  if (income !== undefined) notes.push(`Income: €${income.toLocaleString('en')} net per person in ${r?.income.from ?? 'the latest year'}, this census section.`);
+  if (income !== undefined) notes.push(p.spainIncome(num(income), r?.income.from ?? '?'));
   return notes;
 }
 
 function madridNotes(m: MadridHit): string[] {
   const r = madridMeta()?.date_ranges;
-  const notes = [
-    `Citizen reports in this hex (${r?.avisos.from ?? ''} … ${r?.avisos.to ?? ''}): dirt ${m.cell.n_raw.dirt}, graffiti ${m.cell.n_raw.graffiti}. Residents ≈ ${m.cell.pop}.`,
-  ];
-  if (m.cell.lp) notes.push('Few residents here: values are close to the city average.');
-  if (m.barrio) notes.push(`Crime* and incivism: city-police incidents in ${m.barrio.name} (${r?.police_incidents.from ?? ''} … ${r?.police_incidents.to ?? ''}): ${m.barrio.crime_n} crime, ${m.barrio.incivism_n} incivism.`);
-  notes.push('Madrid publishes no smell data.');
+  const notes = [p.madridReports(r?.avisos.from ?? '', r?.avisos.to ?? '', num(m.cell.n_raw.dirt), num(m.cell.n_raw.graffiti), num(m.cell.pop))];
+  if (m.cell.lp) notes.push(p.fewPeople);
+  if (m.barrio) notes.push(p.madridPolice(m.barrio.name, r?.police_incidents.from ?? '', r?.police_incidents.to ?? '', num(m.barrio.crime_n), num(m.barrio.incivism_n)));
+  notes.push(p.madridNoSmell);
   return notes;
 }
 
@@ -151,33 +162,34 @@ function madridNotes(m: MadridHit): string[] {
 function locationNotes(loc: Located): string[] {
   if (loc.madrid) {
     const notes = madridNotes(loc.madrid);
-    if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
-    notes.push('* Incidents handled by the city police, per barrio: not recorded crime, and the same for the whole barrio.');
+    if (loc.approx === 'hidden-address') notes.push(p.hiddenAddress);
+    notes.push(p.madridCrimeNote);
     return notes;
   }
   if (loc.place) {
     const notes = spainNotes(loc.place);
-    if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
-    if (loc.place.muni.c1k !== undefined) notes.push('* One crime figure per municipality: it does not tell streets apart.');
+    if (loc.approx === 'hidden-address') notes.push(p.hiddenAddress);
+    if (loc.place.muni.c1k !== undefined) notes.push(p.spainCrimeNote);
     return notes;
   }
   const notes: string[] = [];
   if (loc.cell) {
     const r = loc.cell.n_raw;
-    notes.push(`Complaints in this hex (${grid.meta.date_ranges.iris.from} … ${grid.meta.date_ranges.iris.to}): dirt ${r.dirt}, smell ${r.smell}, graffiti ${r.graffiti}, incivism ${r.incivism}. Residents ≈ ${loc.cell.pop}.`);
-    if (loc.cell.lp) notes.push('Few residents here: values are close to the city average.');
+    const { from, to } = grid.meta.date_ranges.iris;
+    notes.push(p.bcnComplaints(from, to, num(r.dirt), num(r.smell), num(r.graffiti), num(r.incivism), num(loc.cell.pop)));
+    if (loc.cell.lp) notes.push(p.fewPeople);
   }
-  if (loc.approx === 'hidden-address') notes.push('≈ The advertiser hid the exact address; location is approximate.');
-  if (loc.approx === 'barri') notes.push('approx: no coordinates for this listing, so this is the barri average.');
-  notes.push('* Crime is official only per district; split over barris by estimate.');
+  if (loc.approx === 'hidden-address') notes.push(p.hiddenAddress);
+  if (loc.approx === 'barri') notes.push(p.barriAverage);
+  notes.push(p.bcnCrimeNote);
   return notes;
 }
 
 // A hex can straddle a barri border, so name the area loosely.
 function areaName(loc: Located): string {
   if (loc.place) return loc.place.muni.n;
-  if (loc.madrid) return loc.madrid.barrio ? `${loc.madrid.barrio.name} area` : 'Madrid';
-  return loc.barri ? (loc.approx === 'barri' ? loc.barri.name : `${loc.barri.name} area`) : 'Barcelona';
+  if (loc.madrid) return loc.madrid.barrio ? p.near(loc.madrid.barrio.name) : 'Madrid';
+  return loc.barri ? (loc.approx === 'barri' ? loc.barri.name : p.near(loc.barri.name)) : 'Barcelona';
 }
 
 // ---- tooltip ----------------------------------------------------------
@@ -191,14 +203,14 @@ function showTip(badge: HTMLElement, loc: Located): void {
   const head = document.createElement('div');
   head.className = 'bcnsq-tip-head';
   const s = score(loc.values, settings);
-  head.textContent = `${areaName(loc)} · score ${s ?? '–'}/100`;
+  head.textContent = p.scoreHead(areaName(loc), s === null ? '–' : String(s));
   tip.append(head);
   for (const c of loc.place ? SPAIN_CATEGORIES : loc.madrid ? MADRID_CATEGORIES : BCN_CATEGORIES) {
     const v = loc.values[c];
     const row = document.createElement('div');
     row.className = 'bcnsq-row' + (settings.enabled[c] && v !== undefined ? '' : ' bcnsq-off');
     const label = document.createElement('span');
-    label.textContent = CATEGORY_LABELS[c] + (c === 'crime' ? '*' : '');
+    label.textContent = t.cats[c] + (c === 'crime' ? '*' : '');
     const bar = document.createElement('span');
     bar.className = 'bcnsq-bar';
     const fill = document.createElement('span');
@@ -210,8 +222,7 @@ function showTip(badge: HTMLElement, loc: Located): void {
     row.append(label, bar, num);
     tip.append(row);
   }
-  const scope = loc.place ? 'Spain-wide' : 'city-wide';
-  for (const n of [`Bars: ${scope} percentile, 0 = best, 100 = worst.`, ...locationNotes(loc)]) {
+  for (const n of [p.bars(!loc.place), ...locationNotes(loc)]) {
     const p = document.createElement('div');
     p.className = 'bcnsq-note';
     p.textContent = n;
@@ -274,13 +285,14 @@ function renderCard(card: HTMLElement): void {
   }
   const lv = level(s);
   badge.dataset.level = lv;
-  const mark = loc.approx === 'hidden-address' ? ' ≈' : loc.approx === 'barri' ? ' approx' : '';
+  const mark = loc.approx === 'hidden-address' ? ' ≈' : loc.approx === 'barri' ? ` ${p.approx}` : '';
   // Barcelona's grid scores the street; the Spain-wide layer only the area.
-  const kind = loc.place ? 'Area' : 'Street';
+  const kind = loc.place ? p.area : p.street;
   const text = `${kind} ${s}${mark}`;
   // Only touch the DOM on change: our own writes would re-trigger the observer.
   if (badge.textContent !== text) badge.textContent = text;
-  badge.setAttribute('aria-label', `${kind} quality score ${s} of 100${mark ? ', approximate' : ''}`);
+  const aria = p.badgeLabel(kind, s, mark !== '');
+  if (badge.getAttribute('aria-label') !== aria) badge.setAttribute('aria-label', aria);
   card.classList.toggle('bcnsq-hidden', settings.hideRed && s < settings.hideBelow);
 }
 
@@ -290,7 +302,6 @@ function renderCard(card: HTMLElement): void {
 // the cards already on the page. It is per tab and survives pagination;
 // picking any of Idealista's own orders switches it off.
 const SORT_KEY = 'bcnsq-sort';
-const SORT_LABEL = 'Nearest to my address';
 
 function sortByDistance(): boolean {
   if (!settings.home) return false;
@@ -325,7 +336,7 @@ function renderDistance(card: HTMLElement): void {
     (card.querySelector(':scope .bcnsq-badge') ?? title).insertAdjacentElement('afterend', chip);
   }
   const text = `${c.hidden ? '≈ ' : ''}${formatDistance(distanceKm(home, c))}`;
-  const hint = `Straight-line distance from ${home.label}${c.hidden ? ' (the advertiser hid the exact address)' : ''}`;
+  const hint = p.distHint(home.label, c.hidden);
   // Only touch the DOM on change: our own writes would re-trigger the observer.
   if (chip.textContent !== text) chip.textContent = text;
   if (chip.title !== hint) chip.title = hint;
@@ -384,7 +395,7 @@ function renderSortOption(): void {
     item?.remove();
   } else if (!item) {
     item = el('li', 'bcnsq-sort');
-    const opt = el('span', 'bcnsq-sort-opt', SORT_LABEL);
+    const opt = el('span', 'bcnsq-sort-opt', p.sortLabel);
     opt.tabIndex = 0;
     opt.setAttribute('role', 'button');
     const choose = (e: Event) => {
@@ -403,6 +414,7 @@ function renderSortOption(): void {
   }
   const on = sortByDistance();
   const opt = item?.firstElementChild;
+  if (opt && opt.textContent !== p.sortLabel) opt.textContent = p.sortLabel;
   if (opt && opt.classList.contains('selected') !== on) opt.classList.toggle('selected', on);
   for (const e of Array.from(root.querySelectorAll<HTMLElement>(`${SEL.orderByOption}.selected, [data-bcnsq-selected]`))) {
     if (on && e.classList.contains('selected')) {
@@ -416,48 +428,26 @@ function renderSortOption(): void {
   const drop = root.querySelector<HTMLElement>(SEL.orderByDropButton);
   if (drop) {
     drop.dataset.bcnsqText ??= drop.textContent?.trim() ?? '';
-    const text = on ? SORT_LABEL : drop.dataset.bcnsqText;
+    const text = on ? p.sortLabel : drop.dataset.bcnsqText;
     if (drop.textContent?.trim() !== text) drop.textContent = text;
   }
 }
 
 // ---- detail page panel --------------------------------------------------------
 
-// Safety is crime read the other way round, so that its word and bar say how
-// safe the area is rather than how much crime it has.
-const PANEL_ROWS: { c: Category; label: string; inverse?: boolean; minor?: boolean }[] = [
-  { c: 'dirt', label: 'Dirt' },
-  { c: 'graffiti', label: 'Graffiti' },
-  { c: 'crime', label: 'Safety*', inverse: true },
-  { c: 'smell', label: 'Smell', minor: true },
-  { c: 'incivism', label: 'Incivism', minor: true },
+// Every row reads the same way: a longer bar is worse. Crime shows as
+// unsafety and income as low income, the way the data has them.
+const PANEL_ROWS: { c: Category; minor?: boolean }[] = [
+  { c: 'dirt' },
+  { c: 'graffiti' },
+  { c: 'crime' },
+  { c: 'smell', minor: true },
+  { c: 'incivism', minor: true },
 ];
-const PROBLEM_WORD: Record<Level, string> = { good: 'Low', mid: 'Medium', bad: 'High' };
-const SAFETY_WORD: Record<Level, string> = { good: 'High', mid: 'Medium', bad: 'Low' };
-const LEVEL_WORD: Record<Level, string> = { good: 'Good', mid: 'Average', bad: 'Poor' };
-const VERDICT: Record<Level, string> = {
-  good: 'Cleaner and safer than most of Barcelona.',
-  mid: 'Around the city average: worth walking the street before deciding.',
-  bad: 'Dirtier or less safe than most of Barcelona.',
-};
-// Outside Barcelona: municipal crime and section income only. Income reads
-// the other way round too, so its bar shows how well-off the area is.
-const SPAIN_ROWS: typeof PANEL_ROWS = [
-  { c: 'crime', label: 'Safety*', inverse: true },
-  { c: 'income', label: 'Income', inverse: true },
-];
+// Outside Barcelona and Madrid: municipal crime and section income only.
+const SPAIN_ROWS: typeof PANEL_ROWS = [{ c: 'crime' }, { c: 'income' }];
 // Madrid has no smell layer.
 const MADRID_ROWS = PANEL_ROWS.filter((r) => r.c !== 'smell');
-const MADRID_VERDICT: Record<Level, string> = {
-  good: 'Cleaner and safer than most of Madrid.',
-  mid: 'Around the city average: worth walking the street before deciding.',
-  bad: 'Dirtier or less safe than most of Madrid.',
-};
-const SPAIN_VERDICT: Record<Level, string> = {
-  good: 'Better than most of Spain on the layers shown.',
-  mid: 'Around the Spanish average: worth walking the street before deciding.',
-  bad: 'Worse than most of Spain on the layers shown.',
-};
 
 let detailLoc: Located | null | undefined | 'pending';
 
@@ -495,55 +485,50 @@ function renderDetail(): void {
   }
   const s = score(loc.values, settings);
   // Only touch the DOM on change: our own writes would re-trigger the observer.
-  const key = JSON.stringify([s, settings.enabled]);
+  const key = JSON.stringify([s, settings.enabled, lang]);
   if (old?.dataset.key === key) return;
 
   const panel = el('section', 'bcnsq-panel');
   panel.dataset.key = key;
-  panel.setAttribute('aria-label', loc.place ? 'Area quality' : 'Street quality');
-  const head = el('div', 'bcnsq-panel-head');
   const lv = s === null ? null : level(s);
+  panel.setAttribute('aria-label', p.panelTitle(!!loc.place, lv ? p.levelWord[lv] : p.allOff));
+  const head = el('div', 'bcnsq-panel-head');
   const big = el('span', 'bcnsq-score', s === null ? '–' : String(s));
   if (lv) big.dataset.level = lv;
   const titles = el('div', '');
   titles.append(
-    el('div', 'bcnsq-panel-title', `${loc.place ? 'Area' : 'Street'} quality: ${lv ? LEVEL_WORD[lv] : 'all layers are off'}`),
-    el('div', 'bcnsq-panel-sub', `${areaName(loc)}${loc.approx === 'exact' ? '' : loc.approx === 'barri' ? ' · barri average' : ' · approximate location'} · score out of 100`),
+    el('div', 'bcnsq-panel-title', p.panelTitle(!!loc.place, lv ? p.levelWord[lv] : p.allOff)),
+    el('div', 'bcnsq-panel-sub', `${areaName(loc)}${loc.approx === 'exact' ? '' : loc.approx === 'barri' ? p.subBarri : p.subApprox}${p.subOutOf}`),
   );
   head.append(big, titles);
   panel.append(head);
-  if (lv) panel.append(el('p', 'bcnsq-verdict', (loc.place ? SPAIN_VERDICT : loc.madrid ? MADRID_VERDICT : VERDICT)[lv]));
+  if (lv) panel.append(el('p', 'bcnsq-verdict', p.verdict[loc.place ? 'spain' : loc.madrid ? 'madrid' : 'bcn'][lv]));
 
-  for (const { c, label, inverse, minor } of loc.place ? SPAIN_ROWS : loc.madrid ? MADRID_ROWS : PANEL_ROWS) {
-    const p = loc.values[c];
-    if (p === undefined) {
+  for (const { c, minor } of loc.place ? SPAIN_ROWS : loc.madrid ? MADRID_ROWS : PANEL_ROWS) {
+    const label = t.cats[c] + (c === 'crime' ? '*' : '');
+    const v = loc.values[c];
+    if (v === undefined) {
       const row = el('div', 'bcnsq-prow bcnsq-off');
-      row.title = 'No data for this place.';
-      row.append(el('span', '', label), el('span', 'bcnsq-bar'), el('span', 'bcnsq-chip bcnsq-nodata', 'No data'), el('span', 'bcnsq-num', '–'));
+      row.title = p.noDataTitle;
+      row.append(el('span', '', label), el('span', 'bcnsq-bar'), el('span', 'bcnsq-chip bcnsq-nodata', p.noData), el('span', 'bcnsq-num', '–'));
       panel.append(row);
       continue;
     }
-    const rowLevel = level(100 - p);
-    const shown = inverse ? 100 - p : p;
+    const rowLevel = level(100 - v);
     const row = el('div', 'bcnsq-prow' + (minor ? ' bcnsq-minor' : '') + (settings.enabled[c] ? '' : ' bcnsq-off'));
-    if (!settings.enabled[c]) row.title = 'Switched off in the extension settings: not counted in the score.';
+    if (!settings.enabled[c]) row.title = p.offTitle;
     const bar = el('span', 'bcnsq-bar');
     const fill = el('span', '');
-    fill.style.width = `${shown}%`;
-    fill.style.background = ramp(p / 100);
+    fill.style.width = `${v}%`;
+    fill.style.background = ramp(v / 100);
     bar.append(fill);
-    const chip = el('span', 'bcnsq-chip', (inverse ? SAFETY_WORD : PROBLEM_WORD)[rowLevel]);
+    const chip = el('span', 'bcnsq-chip', p.amount[rowLevel]);
     chip.dataset.level = rowLevel;
-    row.append(el('span', '', label), bar, chip, el('span', 'bcnsq-num', String(shown)));
+    row.append(el('span', '', label), bar, chip, el('span', 'bcnsq-num', String(v)));
     panel.append(row);
   }
 
-  const notes = [
-    loc.place
-      ? 'Safety and income: Spain-wide percentile, 100 = safest / highest income. Score: 100 = best. Same data as the map overlay.'
-      : `Dirt, graffiti, ${loc.madrid ? '' : 'smell, '}incivism: city-wide percentile, 0 = least, 100 = most. Safety and score: 100 = best. Same data as the map overlay.`,
-    ...locationNotes(loc),
-  ];
+  const notes = [p.panelNote(!loc.place), ...locationNotes(loc)];
   for (const n of notes) panel.append(el('div', 'bcnsq-note', n));
 
   if (old) old.replaceWith(panel);
@@ -562,8 +547,8 @@ function renderAll(): void {
 
 function overlayTitle(): string {
   const on = CATEGORIES.filter((c) => settings.enabled[c] && settings.weights[c] > 0);
-  if (on.length === 1) return CATEGORY_LABELS[on[0]];
-  return on.length === CATEGORIES.length ? 'score' : `score (${on.map((c) => CATEGORY_LABELS[c]).join(', ')})`;
+  if (on.length === 1) return t.cats[on[0]];
+  return on.length === CATEGORIES.length ? p.mapScore : `${p.mapScore} (${on.map((c) => t.cats[c]).join(', ')})`;
 }
 
 // Hexes that depend on the map view: Madrid's grid once the view reaches
@@ -602,7 +587,7 @@ function sendOverlay(): void {
     const s = score(values, settings);
     if (s !== null) cells.push({ ring, color: ramp(1 - s / 100) });
   }
-  const msg: OverlayMsg = { [TAG]: 'overlay', enabled: settings.overlay, opacity: settings.opacity, title: overlayTitle(), cells };
+  const msg: OverlayMsg = { [TAG]: 'overlay', enabled: settings.overlay, opacity: settings.opacity, title: overlayTitle(), better: p.mapBetter, worse: p.mapWorse, cells };
   window.postMessage(msg, window.location.origin);
 }
 
@@ -610,7 +595,7 @@ function sendOverlay(): void {
 
 async function main(): Promise<void> {
   const [stored] = await Promise.all([loadSettings(), loadGrid()]);
-  settings = effective(stored);
+  applySettings(stored);
   renderAll();
   sendOverlay();
   let pending = false;
@@ -623,7 +608,7 @@ async function main(): Promise<void> {
     });
   }).observe(document.body, { childList: true, subtree: true });
   onSettingsChanged((s) => {
-    settings = effective(s);
+    applySettings(s);
     safe('render', renderAll)();
     safe('overlay', sendOverlay)();
   });

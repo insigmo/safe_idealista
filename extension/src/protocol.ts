@@ -12,6 +12,8 @@ export interface OverlayMsg {
   enabled: boolean;
   opacity: number;
   title: string;
+  better: string; // legend ends, in the popup's language
+  worse: string;
   cells: OverlayCell[];
 }
 

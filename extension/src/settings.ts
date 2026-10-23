@@ -3,15 +3,6 @@
 export const CATEGORIES = ['dirt', 'smell', 'graffiti', 'incivism', 'crime', 'income'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
-export const CATEGORY_LABELS: Record<Category, string> = {
-  dirt: 'Dirt',
-  smell: 'Smell',
-  graffiti: 'Graffiti',
-  incivism: 'Incivism',
-  crime: 'Crime',
-  income: 'Low income',
-};
-
 export const LANGS = ['en', 'es', 'ru', 'pt', 'it'] as const;
 export type Lang = (typeof LANGS)[number];
 
@@ -26,7 +17,7 @@ export interface Home {
 
 export interface Settings {
   on: boolean; // master switch: off leaves Idealista pages untouched
-  lang: Lang | null; // popup language; null = the browser's
+  lang: Lang | null; // popup and on-page language; null = the browser's
   badges: boolean;
   overlay: boolean;
   opacity: number; // 0..1
