@@ -36,15 +36,15 @@ interface PageStrings {
   noData: string;
   noDataTitle: string;
   offTitle: string;
-  panelNote: (city: boolean) => string;
+  panelNote: string;
   mapScore: string;
   mapBetter: string;
   mapWorse: string;
-  bcnComplaints: (from: string, to: string, dirt: string, smell: string, graffiti: string, incivism: string, pop: string) => string;
+  dataUpdated: (to: string) => string;
+  peopleHere: (pop: string) => string;
   fewPeople: string;
   hiddenAddress: string;
   barriAverage: string;
-  bcnCrimeNote: string;
   madridReports: (from: string, to: string, dirt: string, graffiti: string, pop: string) => string;
   madridPolice: (barrio: string, from: string, to: string, crime: string, incivism: string) => string;
   madridNoSmell: string;
@@ -150,15 +150,15 @@ const en = {
     noData: 'No data',
     noDataTitle: 'No data for this place.',
     offTitle: 'Off in the settings: not part of the score.',
-    panelNote: (city) => `Bars: 0 = good, 100 = bad, compared with ${city ? 'the whole city' : 'all of Spain'}. The big number is the other way round: 100 = best. The map uses the same data.`,
+    panelNote: 'Bars: 0 = good, 100 = bad',
     mapScore: 'score',
     mapBetter: 'better',
     mapWorse: 'worse',
-    bcnComplaints: (from, to, dirt, smell, graffiti, incivism, pop) => `People’s complaints here (${from} – ${to}): dirt ${dirt}, smell ${smell}, graffiti ${graffiti}, bad behaviour ${incivism}. About ${pop} people live here.`,
+    dataUpdated: (to) => `Last update of data ${to}`,
+    peopleHere: (pop) => `About ${pop} people live here.`,
     fewPeople: 'Few people live here, so the numbers are close to the city average.',
-    hiddenAddress: '≈ The advertiser hid the exact address. The location is approximate.',
+    hiddenAddress: 'The location is approximate.',
     barriAverage: 'This listing has no exact location. We show the neighbourhood average.',
-    bcnCrimeNote: '* The police give crime numbers only per district. We split them by neighbourhood as an estimate.',
     madridReports: (from, to, dirt, graffiti, pop) => `People’s reports here (${from} – ${to}): dirt ${dirt}, graffiti ${graffiti}. About ${pop} people live here.`,
     madridPolice: (barrio, from, to, crime, incivism) => `Unsafety* and bad behaviour: city police cases in ${barrio} (${from} – ${to}): ${crime} crimes, ${incivism} bad behaviour.`,
     madridNoSmell: 'Madrid does not publish smell data.',
@@ -267,15 +267,15 @@ const es: Strings = {
     noData: 'Sin datos',
     noDataTitle: 'No hay datos para este lugar.',
     offTitle: 'Apagado en los ajustes: no cuenta en la puntuación.',
-    panelNote: (city) => `Barras: 0 = bien, 100 = mal, comparado con ${city ? 'toda la ciudad' : 'toda España'}. El número grande va al revés: 100 = lo mejor. El mapa usa los mismos datos.`,
+    panelNote: 'Barras: 0 = bien, 100 = mal',
     mapScore: 'puntuación',
     mapBetter: 'mejor',
     mapWorse: 'peor',
-    bcnComplaints: (from, to, dirt, smell, graffiti, incivism, pop) => `Quejas de vecinos aquí (${from} – ${to}): suciedad ${dirt}, olores ${smell}, grafitis ${graffiti}, mal comportamiento ${incivism}. Aquí viven unas ${pop} personas.`,
+    dataUpdated: (to) => `Última actualización de datos ${to}`,
+    peopleHere: (pop) => `Aquí viven unas ${pop} personas.`,
     fewPeople: 'Aquí vive poca gente, así que los números están cerca de la media de la ciudad.',
-    hiddenAddress: '≈ El anunciante ocultó la dirección exacta. La ubicación es aproximada.',
+    hiddenAddress: 'La ubicación es aproximada.',
     barriAverage: 'Este anuncio no tiene ubicación exacta. Mostramos la media del barrio.',
-    bcnCrimeNote: '* La policía da los delitos solo por distrito. Los repartimos por barrio de forma aproximada.',
     madridReports: (from, to, dirt, graffiti, pop) => `Avisos de vecinos aquí (${from} – ${to}): suciedad ${dirt}, grafitis ${graffiti}. Aquí viven unas ${pop} personas.`,
     madridPolice: (barrio, from, to, crime, incivism) => `Inseguridad* y mal comportamiento: casos de la Policía Municipal en ${barrio} (${from} – ${to}): ${crime} delitos, ${incivism} de mal comportamiento.`,
     madridNoSmell: 'Madrid no publica datos de olores.',
@@ -382,15 +382,15 @@ const ru: Strings = {
     noData: 'Нет данных',
     noDataTitle: 'Для этого места нет данных.',
     offTitle: 'Выключено в настройках: не входит в оценку.',
-    panelNote: (city) => `Полоски: 0 = хорошо, 100 = плохо, по сравнению со ${city ? 'всем городом' : 'всей Испанией'}. Большое число — наоборот: 100 = лучше всего. На карте те же данные.`,
+    panelNote: 'Полоски: 0 = хорошо, 100 = плохо',
     mapScore: 'оценка',
     mapBetter: 'лучше',
     mapWorse: 'хуже',
-    bcnComplaints: (from, to, dirt, smell, graffiti, incivism, pop) => `Жалобы жителей здесь (${from} – ${to}): грязь ${dirt}, запах ${smell}, граффити ${graffiti}, хулиганство ${incivism}. Здесь живёт около ${pop} человек.`,
+    dataUpdated: (to) => `Последнее обновление данных ${to}`,
+    peopleHere: (pop) => `Здесь живёт около ${pop} человек.`,
     fewPeople: 'Здесь живёт мало людей, поэтому цифры близки к среднему по городу.',
-    hiddenAddress: '≈ Продавец скрыл точный адрес. Место указано примерно.',
+    hiddenAddress: 'Место указано примерно.',
     barriAverage: 'У объявления нет точного места. Показано среднее по кварталу.',
-    bcnCrimeNote: '* Полиция даёт данные о преступлениях только по округам. Мы делим их по кварталам примерно.',
     madridReports: (from, to, dirt, graffiti, pop) => `Жалобы жителей здесь (${from} – ${to}): грязь ${dirt}, граффити ${graffiti}. Здесь живёт около ${pop} человек.`,
     madridPolice: (barrio, from, to, crime, incivism) => `Опасность* и хулиганство: вызовы городской полиции, квартал ${barrio} (${from} – ${to}): преступления — ${crime}, хулиганство — ${incivism}.`,
     madridNoSmell: 'Мадрид не публикует данные о запахе.',
@@ -497,15 +497,15 @@ const pt: Strings = {
     noData: 'Sem dados',
     noDataTitle: 'Não há dados para este local.',
     offTitle: 'Desligado nas definições: não conta para a pontuação.',
-    panelNote: (city) => `Barras: 0 = bom, 100 = mau, em comparação com ${city ? 'toda a cidade' : 'toda a Espanha'}. O número grande é ao contrário: 100 = o melhor. O mapa usa os mesmos dados.`,
+    panelNote: 'Barras: 0 = bom, 100 = mau',
     mapScore: 'pontuação',
     mapBetter: 'melhor',
     mapWorse: 'pior',
-    bcnComplaints: (from, to, dirt, smell, graffiti, incivism, pop) => `Queixas dos moradores aqui (${from} – ${to}): sujidade ${dirt}, cheiros ${smell}, grafitos ${graffiti}, mau comportamento ${incivism}. Vivem aqui cerca de ${pop} pessoas.`,
+    dataUpdated: (to) => `Última atualização dos dados ${to}`,
+    peopleHere: (pop) => `Vivem aqui cerca de ${pop} pessoas.`,
     fewPeople: 'Vive aqui pouca gente, por isso os números estão perto da média da cidade.',
-    hiddenAddress: '≈ O anunciante ocultou a morada exata. A localização é aproximada.',
+    hiddenAddress: 'A localização é aproximada.',
     barriAverage: 'Este anúncio não tem localização exata. Mostramos a média do bairro.',
-    bcnCrimeNote: '* A polícia só dá os crimes por distrito. Dividimo-los por bairro de forma aproximada.',
     madridReports: (from, to, dirt, graffiti, pop) => `Avisos dos moradores aqui (${from} – ${to}): sujidade ${dirt}, grafitos ${graffiti}. Vivem aqui cerca de ${pop} pessoas.`,
     madridPolice: (barrio, from, to, crime, incivism) => `Insegurança* e mau comportamento: casos da Polícia Municipal em ${barrio} (${from} – ${to}): ${crime} crimes, ${incivism} de mau comportamento.`,
     madridNoSmell: 'Madrid não publica dados de cheiros.',
@@ -612,15 +612,15 @@ const it: Strings = {
     noData: 'Nessun dato',
     noDataTitle: 'Nessun dato per questo posto.',
     offTitle: 'Spento nelle impostazioni: non conta nel punteggio.',
-    panelNote: (city) => `Barre: 0 = bene, 100 = male, rispetto a ${city ? 'tutta la città' : 'tutta la Spagna'}. Il numero grande è al contrario: 100 = il migliore. La mappa usa gli stessi dati.`,
+    panelNote: 'Barre: 0 = bene, 100 = male',
     mapScore: 'punteggio',
     mapBetter: 'meglio',
     mapWorse: 'peggio',
-    bcnComplaints: (from, to, dirt, smell, graffiti, incivism, pop) => `Segnalazioni dei residenti qui (${from} – ${to}): sporcizia ${dirt}, odori ${smell}, graffiti ${graffiti}, maleducazione ${incivism}. Qui vivono circa ${pop} persone.`,
+    dataUpdated: (to) => `Ultimo aggiornamento dei dati ${to}`,
+    peopleHere: (pop) => `Qui vivono circa ${pop} persone.`,
     fewPeople: 'Qui vive poca gente, quindi i numeri sono vicini alla media della città.',
-    hiddenAddress: "≈ L'inserzionista ha nascosto l'indirizzo esatto. La posizione è approssimata.",
+    hiddenAddress: 'La posizione è approssimata.',
     barriAverage: 'Questo annuncio non ha una posizione esatta. Mostriamo la media del quartiere.',
-    bcnCrimeNote: '* La polizia dà i reati solo per distretto. Li dividiamo per quartiere in modo approssimato.',
     madridReports: (from, to, dirt, graffiti, pop) => `Segnalazioni dei residenti qui (${from} – ${to}): sporcizia ${dirt}, graffiti ${graffiti}. Qui vivono circa ${pop} persone.`,
     madridPolice: (barrio, from, to, crime, incivism) => `Insicurezza* e maleducazione: interventi della Polizia Municipale a ${barrio} (${from} – ${to}): ${crime} reati, ${incivism} di maleducazione.`,
     madridNoSmell: 'Madrid non pubblica dati sugli odori.',

@@ -174,14 +174,12 @@ function locationNotes(loc: Located): string[] {
   }
   const notes: string[] = [];
   if (loc.cell) {
-    const r = loc.cell.n_raw;
-    const { from, to } = grid.meta.date_ranges.iris;
-    notes.push(p.bcnComplaints(from, to, num(r.dirt), num(r.smell), num(r.graffiti), num(r.incivism), num(loc.cell.pop)));
+    notes.push(p.dataUpdated(grid.meta.date_ranges.iris.to));
+    notes.push(p.peopleHere(num(loc.cell.pop)));
     if (loc.cell.lp) notes.push(p.fewPeople);
   }
   if (loc.approx === 'hidden-address') notes.push(p.hiddenAddress);
   if (loc.approx === 'barri') notes.push(p.barriAverage);
-  notes.push(p.bcnCrimeNote);
   return notes;
 }
 
@@ -528,7 +526,7 @@ function renderDetail(): void {
     panel.append(row);
   }
 
-  const notes = [p.panelNote(!loc.place), ...locationNotes(loc)];
+  const notes = [p.panelNote, ...locationNotes(loc)];
   for (const n of notes) panel.append(el('div', 'bcnsq-note', n));
 
   if (old) old.replaceWith(panel);

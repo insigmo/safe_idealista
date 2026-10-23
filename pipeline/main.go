@@ -231,36 +231,11 @@ func run(f *fetcher, outDir string, months, res int, alpha float64) error {
 		return fmt.Errorf("IRIS window starts %s, before the oldest downloaded file", from)
 	}
 	ranges["iris"] = Range{from.String(), to.String()}
-	logf("IRIS: %d rows; %d complaint records with coordinates; window %s..%s", ist.Rows, len(recs), from, to)
+	logf("IRIS: %d rows (%d duplicate rows dropped); %d complaint records with coordinates; window %s..%s", ist.Rows, ist.Duplicates, len(recs), from, to)
 
-	mapping := map[[3]string]*mapRow{}
-	totals := map[string]int{}
-	var outside int
-	for _, r := range recs {
-		if r.Month < from || r.Month > to {
-			continue
-		}
-		k := [3]string{r.Area, r.Element, r.Detail}
-		mr := mapping[k]
-		if mr == nil {
-			mr = &mapRow{Area: r.Area, Element: r.Element, Detail: r.Detail, Cat: classify(r.Area, r.Element, r.Detail)}
-			mapping[k] = mr
-		}
-		mr.N++
-		if mr.Cat == catNone {
-			continue
-		}
-		cell, err := h3.LatLngToCell(h3.NewLatLng(r.Lat, r.Lon), res)
-		if err != nil {
-			return err
-		}
-		h := hexes[cell]
-		if h == nil {
-			outside++ // geocoded to sea, port or beyond the municipal boundary
-			continue
-		}
-		h.Counts[mr.Cat]++
-		totals[irisCatNames[mr.Cat]]++
+	mapping, totals, outside, err := countIRIS(recs, from, to, hexes, res)
+	if err != nil {
+		return err
 	}
 	logf("IRIS: %d mapped records fell outside populated-land cells and were dropped", outside)
 	totals["iris_dropped_outside"] = outside
@@ -337,13 +312,7 @@ func run(f *fetcher, outDir string, months, res int, alpha float64) error {
 		for _, k := range catOrder {
 			p[k] = pcts[k][c]
 		}
-		grid.Cells[c.String()] = CellOut{
-			Dirt: round(p["dirt"]), Smell: round(p["smell"]), Graffiti: round(p["graffiti"]),
-			Incivism: round(p["incivism"]), Crime: round(p["crime"]),
-			Score: round(score(p, defaultWeights)), Pop: round(h.Pop), Barri: h.Barri,
-			Income: round(h.Income()), LowPop: h.Pop < residentialMinPop,
-			Raw: RawCounts{round(h.Counts[catDirt]), round(h.Counts[catSmell]), round(h.Counts[catGraffiti]), round(h.Counts[catIncivism])},
-		}
+		grid.Cells[c.String()] = cellOut(h, p)
 		// A hex can straddle barris: credit each one by its residents in the
 		// hex, so small barris without a majority hex still get values.
 		var wsum float64
@@ -424,6 +393,18 @@ func run(f *fetcher, outDir string, months, res int, alpha float64) error {
 		return err
 	}
 	return writeReviewMap(filepath.Join(outDir, "review_map.html"), grid, hexes)
+}
+
+// cellOut is one hex as the extension reads it: percentiles p for the bars,
+// and in n_raw the plain complaint counts it shows to people.
+func cellOut(h *Hex, p map[string]float64) CellOut {
+	return CellOut{
+		Dirt: round(p["dirt"]), Smell: round(p["smell"]), Graffiti: round(p["graffiti"]),
+		Incivism: round(p["incivism"]), Crime: round(p["crime"]),
+		Score: round(score(p, defaultWeights)), Pop: round(h.Pop), Barri: h.Barri,
+		Income: round(h.Income()), LowPop: h.Pop < residentialMinPop,
+		Raw: RawCounts{Dirt: round(h.Counts[catDirt]), Smell: round(h.Counts[catSmell]), Graffiti: round(h.Counts[catGraffiti]), Incivism: round(h.Counts[catIncivism])},
+	}
 }
 
 func writeJSON(path string, v any) error {
