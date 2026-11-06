@@ -1,10 +1,10 @@
 # Spain-wide layer
 
-Generated 2026-10-21T15:35:58Z. Crime 2025, income 2024, sections of 2025-01-01.
+Generated 2026-11-06T14:09:55Z. Crime 2025, income 2024, sections of 2025-01-01.
 
 - 36554 census sections in 8134 municipalities, 48438511 residents.
 - Crime published for 427 municipalities: 33823184 residents (70%).
-- 338241 H3 cells in 78 shards, 8534 KB in total.
+- 338241 H3 cells in 78 shards, 8535 KB in total.
 
 ## Municipalities over 100,000 residents by street crime per 1,000 residents
 
@@ -14,8 +14,8 @@ Generated 2026-10-21T15:35:58Z. Crime 2025, income 2024, sections of 2025-01-01.
 | 2 | San Cristóbal de La Laguna (38023) | 159478 | 1764 | 11.1 | 12 | 14792 |
 | 3 | Fuenlabrada (28058) | 188482 | 2117 | 11.2 | 13 | 14321 |
 | 4 | Oviedo (33044) | 221490 | 2586 | 11.7 | 16 | 17757 |
-| 5 | Móstoles (28092) | 211596 | 2524 | 11.9 | 18 | 14858 |
-| 6 | Telde (35026) | 103583 | 1230 | 11.9 | 17 | 14216 |
+| 5 | Telde (35026) | 103583 | 1230 | 11.9 | 17 | 14216 |
+| 6 | Móstoles (28092) | 211596 | 2524 | 11.9 | 18 | 14858 |
 | 7 | Valladolid (47186) | 298768 | 3641 | 12.2 | 18 | 17380 |
 | 8 | Dos Hermanas (41038) | 141651 | 1777 | 12.5 | 20 | 14235 |
 | 9 | Jaén (23050) | 111402 | 1457 | 13.1 | 22 | 15577 |
@@ -32,8 +32,8 @@ Generated 2026-10-21T15:35:58Z. Crime 2025, income 2024, sections of 2025-01-01.
 | 20 | Jerez de la Frontera (11020) | 213320 | 3444 | 16.1 | 37 | 12991 |
 | 21 | Alcalá de Henares (28005) | 200154 | 3233 | 16.2 | 38 | 16532 |
 | 22 | Zaragoza (50297) | 689555 | 11355 | 16.5 | 39 | 17199 |
-| 23 | Santa Cruz de Tenerife (38038) | 207759 | 3476 | 16.7 | 42 | 16081 |
-| 24 | Las Palmas de Gran Canaria (35016) | 376951 | 6287 | 16.7 | 41 | 16088 |
+| 23 | Las Palmas de Gran Canaria (35016) | 376951 | 6287 | 16.7 | 41 | 16088 |
+| 24 | Santa Cruz de Tenerife (38038) | 207759 | 3476 | 16.7 | 42 | 16081 |
 | 25 | Badajoz (06015) | 150151 | 2522 | 16.8 | 43 | 14812 |
 | 26 | Almería (04013) | 202045 | 3448 | 17.1 | 44 | 14136 |
 | 27 | Santander (39075) | 172426 | 2981 | 17.3 | 45 | 17492 |
@@ -57,8 +57,8 @@ Generated 2026-10-21T15:35:58Z. Crime 2025, income 2024, sections of 2025-01-01.
 | 45 | Murcia (30030) | 472201 | 10028 | 21.2 | 59 | 14716 |
 | 46 | Leganés (28074) | 193279 | 4176 | 21.6 | 61 | 15370 |
 | 47 | Vitoria-Gasteiz (01059) | 256515 | 6027 | 23.5 | 63 | 18920 |
-| 48 | Lleida (25120) | 143730 | 3412 | 23.7 | 64 | 15836 |
-| 49 | Rivas-Vaciamadrid (28123) | 101436 | 2405 | 23.7 | 64 | 19570 |
+| 48 | Rivas-Vaciamadrid (28123) | 101436 | 2405 | 23.7 | 64 | 19570 |
+| 49 | Lleida (25120) | 143730 | 3412 | 23.7 | 64 | 15836 |
 | 50 | Donostia/San Sebastián (20069) | 185579 | 4635 | 25.0 | 65 | 23700 |
 | 51 | Tarragona (43148) | 140779 | 3869 | 27.5 | 67 | 16536 |
 | 52 | Mataró (08121) | 129262 | 3591 | 27.8 | 68 | 15322 |
