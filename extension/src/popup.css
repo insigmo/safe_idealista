@@ -203,6 +203,8 @@ summary { cursor: pointer; color: var(--muted); font-weight: 600; }
 
 footer { padding: 0 14px 12px; color: var(--muted); font-size: 11px; display: flex; flex-direction: column; gap: 2px; }
 footer a, .sources a { color: var(--accent); }
+.donate { display: inline-flex; align-items: center; align-self: flex-start; gap: 4px; margin-top: 4px; font-weight: 600; }
+.donate svg { width: 14px; height: 14px; }
 
 /* sources dialog */
 dialog {

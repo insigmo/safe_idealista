@@ -112,6 +112,7 @@ const en = {
   addrLookup: 'address search',
   disclaimer: 'Not part of Idealista. For information only. No guarantee.',
   license: 'License',
+  donate: 'Buy me a coffee',
   cats: { dirt: 'Dirt', smell: 'Smell', graffiti: 'Graffiti', incivism: 'Bad behaviour', crime: 'Unsafety', income: 'Low income' } as Record<Category, string>,
   page: {
     street: 'Street',
@@ -229,6 +230,7 @@ const es: Strings = {
   addrLookup: 'búsqueda de direcciones',
   disclaimer: 'No es parte de Idealista. Solo informativo. Sin garantía.',
   license: 'Licencia',
+  donate: 'Invítame a un café',
   cats: { dirt: 'Suciedad', smell: 'Malos olores', graffiti: 'Grafitis', incivism: 'Mal comportamiento', crime: 'Inseguridad', income: 'Renta baja' },
   page: {
     street: 'Calle',
@@ -344,6 +346,7 @@ const ru: Strings = {
   addrLookup: 'поиск адреса',
   disclaimer: 'Не связано с Idealista. Только для информации. Без гарантий.',
   license: 'Лицензия',
+  donate: 'Угостить кофе',
   cats: { dirt: 'Грязь', smell: 'Запах', graffiti: 'Граффити', incivism: 'Хулиганство', crime: 'Опасность', income: 'Низкий доход' },
   page: {
     street: 'Улица',
@@ -459,6 +462,7 @@ const pt: Strings = {
   addrLookup: 'pesquisa de moradas',
   disclaimer: 'Não faz parte do Idealista. Apenas informativo. Sem garantia.',
   license: 'Licença',
+  donate: 'Ofereça-me um café',
   cats: { dirt: 'Sujidade', smell: 'Maus cheiros', graffiti: 'Grafitos', incivism: 'Mau comportamento', crime: 'Insegurança', income: 'Rendimento baixo' },
   page: {
     street: 'Rua',
@@ -574,6 +578,7 @@ const it: Strings = {
   addrLookup: 'ricerca indirizzi',
   disclaimer: 'Non fa parte di Idealista. Solo informativo. Senza garanzia.',
   license: 'Licenza',
+  donate: 'Offrimi un caffè',
   cats: { dirt: 'Sporcizia', smell: 'Cattivi odori', graffiti: 'Graffiti', incivism: 'Maleducazione', crime: 'Insicurezza', income: 'Reddito basso' },
   page: {
     street: 'Via',
