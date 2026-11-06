@@ -63,15 +63,19 @@ The build packs `data/` into `dist/` with `extension/pack.mjs`: `bcn/` and `madr
 
 The same build writes `dist-firefox/`: the files of `dist/` with the manifest rewritten for Firefox (an event-page `background.scripts`, the add-on id, and `data_collection_permissions` declaring the address sent to Nominatim). `npm run lint:firefox` runs Mozilla's `web-ext lint` over it.
 
-`npm run package` builds, lints and writes the store uploads to `extension/packages/`: `chrome-<version>.zip` for the Chrome Web Store and `firefox-<version>.zip` for addons.mozilla.org. AMO also asks for the source, since the scripts are bundled and minified: upload `git archive --format zip -o source.zip HEAD` with the build steps above. Bump `version` in `src/manifest.json` before each upload.
+`npm run package` builds, lints and writes the store uploads to `extension/packages/`: `chrome-<version>.zip` for the Chrome Web Store and `firefox-<version>.zip` for addons.mozilla.org. AMO also asks for the source, since the scripts are bundled and minified: upload `git archive --format zip -o source.zip HEAD` with the build steps above.
 
-GitHub builds the same files (`.github/workflows/extension-package.yml`): every run keeps `chrome-<version>.zip`, `firefox-<version>.zip` and `source-<version>.zip` as the **extension-packages** artifact of the run. To cut a release, bump the version, commit, then tag and push it; the run attaches the three zips to a GitHub release:
+GitHub builds the same files (`.github/workflows/extension-package.yml`): every run keeps `chrome-<version>.zip`, `firefox-<version>.zip` and `source-<version>.zip` as the **extension-packages** artifact of the run, and a tag's run attaches them to its GitHub release.
+
+To publish, run this from a clean `master`. It needs [Task](https://taskfile.dev), Go, `make`, Node and a logged-in `gh`:
 
 ```bash
-git tag v0.4.1 && git push origin v0.4.1
+task deploy
 ```
 
-Upload `chrome-*.zip` to the Chrome Web Store, and `firefox-*.zip` to AMO with `source-*.zip` as its source code.
+It downloads every source again, refuses data that shrank or no longer matches the sources, bumps the patch version, pushes `master` with the tag and creates the GitHub release. The same push publishes the new data to the `data-release` branch. `task deploy BUMP=minor` picks another bump (`major` or an exact `x.y.z` also work), and `task release` does all of this without the data update.
+
+The zips end up in `extension/packages/`. Upload `chrome-*.zip` to the Chrome Web Store, and `firefox-*.zip` to AMO with `source-*.zip` as its source code.
 
 For development, `npm run build:harness` writes `dist-test/`:
 - `fixture.html` is a local copy of Idealista's list markup, built from real listings, with the content script running on a fake `chrome.storage`. It also has synthetic listings in Madrid (city grid), Pozuelo, Seville, Las Palmas, Cadaqués and at sea (Spain-wide layer).

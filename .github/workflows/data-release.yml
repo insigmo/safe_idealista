@@ -59,17 +59,7 @@ jobs:
       # A source that silently shrank (a renamed column, an empty year) must
       # not reach users: refuse output well below the current coverage.
       - name: Check output
-        working-directory: data
-        run: |
-          node -e '
-            const min = { "grid.json": 1000, "madrid/grid.json": 5000 };
-            for (const [f, n] of Object.entries(min)) {
-              const got = Object.keys(require("./" + f).cells).length;
-              if (got < n) throw new Error(`${f}: ${got} cells, expected at least ${n}`);
-            }
-            const shards = require("./spain/index.json").shards.length;
-            if (shards < 70) throw new Error(`spain: ${shards} shards, expected at least 70`);
-          '
+        run: node extension/check-data.mjs data
 
       - name: Pack
         run: node extension/pack.mjs data release

@@ -1,0 +1,88 @@
+# Publishing, run from a clean master:
+#
+#   task deploy               fresh data, patch bump, release, store zips
+#   task deploy BUMP=minor    the same with minor, major or an exact x.y.z
+#   task release              the same without the data update
+#   task data                 only refresh data/, left uncommitted for review
+#
+# The zips end up in extension/packages/ and go to the stores by hand. Pushing
+# a "release v*" commit keeps CI from bumping again; the data in that push is
+# what the Data release workflow publishes (see .github/workflows/).
+version: '3'
+
+vars:
+  BUMP: patch
+  # PATH with the SDK that pipeline/go.mod asks for, where golang.org/dl puts
+  # it. Commands set it themselves: Taskfile env cannot override PATH.
+  PATH_WITH_GO:
+    sh: node -p "const {join, delimiter} = require('path'), go = /^go ([0-9.]+)/m.exec(require('fs').readFileSync('pipeline/go.mod', 'utf8'))[1]; [join(require('os').homedir(), 'sdk', 'go' + go, 'bin'), process.env.PATH].join(delimiter)"
+
+tasks:
+  default:
+    cmd: task --list
+    silent: true
+
+  deploy:
+    desc: Update the data, bump the version, publish and pack the store zips
+    cmds:
+      - task: sync
+      - task: data
+      - git add data
+      - git diff --cached --quiet || git commit -m "update data"
+      - task: release
+
+  release:
+    desc: Bump the version, publish and pack the store zips, keeping the current data
+    cmds:
+      - task: sync
+      - task: check
+      # release.mjs needs a clean tree, and check rebuilt dist/.
+      - git add extension/dist extension/dist-firefox
+      - git diff --cached --quiet || git commit -m "rebuild extension"
+      - npm --prefix extension run release -- {{.BUMP}}
+      - npm --prefix extension run package
+      # The version is read here, not in a var: Task caches `sh:` vars, so one
+      # would still hold the version from before the bump.
+      - cmd: |
+          v=$(node -p "require('./extension/src/manifest.json').version")
+          git archive --format zip -o "extension/packages/source-$v.zip" HEAD
+          echo
+          echo "Released v$v. Upload by hand:"
+          echo "  Chrome Web Store  extension/packages/chrome-$v.zip"
+          echo "                    https://chrome.google.com/webstore/devconsole"
+          echo "  Firefox AMO       extension/packages/firefox-$v.zip, source code: source-$v.zip"
+          echo "                    https://addons.mozilla.org/developers/addons"
+        silent: true
+
+  data:
+    desc: Download every source again and regenerate data/
+    cmds:
+      - PATH='{{.PATH_WITH_GO}}' make -C pipeline refresh
+      - node extension/check-data.mjs data
+      - PATH='{{.PATH_WITH_GO}}' make -C pipeline test
+
+  check:
+    desc: Typecheck, vet, test, build and lint without publishing anything
+    cmds:
+      - npm --prefix extension ci
+      - npm --prefix extension run typecheck
+      - PATH='{{.PATH_WITH_GO}}' make -C pipeline vet
+      - PATH='{{.PATH_WITH_GO}}' make -C pipeline test
+      - npm --prefix extension run build
+      - npm --prefix extension run lint:firefox
+
+  # Fails before the long download rather than after it, and takes in whatever
+  # CI pushed to master, or the final push would be refused.
+  sync:
+    internal: true
+    preconditions:
+      - sh: test "$(git rev-parse --abbrev-ref HEAD)" = master
+        msg: publish from master only
+      - sh: test -z "$(git status --porcelain)"
+        msg: 'working tree is not clean (after a failed data update: git restore data)'
+      - sh: gh auth status
+        msg: 'gh is not logged in: gh auth login'
+      - sh: PATH='{{.PATH_WITH_GO}}' go version
+        msg: go not found, neither on PATH nor in ~/sdk
+    cmds:
+      - git pull --no-rebase --no-edit origin master
